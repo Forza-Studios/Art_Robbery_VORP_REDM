@@ -1,9 +1,16 @@
 Config = {}
 
-Config.PedModel = `cs_valprostitute_02`
-Config.PedCoords = vector4(-238.9870, 770.3414, 117.0950, 108.0667)
+Config.Locations = {
+    ['valentine'] = {
+        model = `cs_valprostitute_02`,
+        coords = vector4(-238.9870, 770.3414, 117.0950, 108.0667),
+        sprite= 1420154945
+        label = 'Meet Jessie'
+    },
+}
+
 Config.Invincible = true
-Config.ReturnThreshold = 1.5 -- Distance from POST before NPC decides to walk back if not wandering
+Config.ReturnThreshold = 1.5
 
 -- Native speech lines. RedM chooses the correct voice for the ped model.
 Config.Debug = true
