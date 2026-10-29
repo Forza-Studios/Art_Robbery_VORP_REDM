@@ -46,9 +46,36 @@ Config.Npc = {
     -- (for example "a_f_m_valtownfolk_01") if you prefer a generic townsperson.
     model = "rcsp_beauandpenelope1_females_01",
     -- Chair X, Y, Z and heading. The heading is the direction the chair faces.
+    -- This is the chair opposite the player; it is the only location setting.
     coords = { x = -244.0550, y = 772.1157, z = 116.5846, h = 199.8500 },
     scenario = "PROP_HUMAN_SEAT_CHAIR_DRINKING",
-    -- Chair coords are taken at seat height, so drop to floor level by default.
+
+    -- Only show the NPC while the player is sitting near the opposite chair.
+    -- Set this to false to fall back to the old "spawn when you are nearby" mode.
+    onlyWhilePlayerSeated = true,
+    -- How close the player's seat must be to the configured chair (metres).
+    playerSitRadius = 4.0,
+    -- Ignore the configured chair itself, so sitting on the NPC's chair does not
+    -- make her try to sit in the same seat.
+    playerMinDistance = 0.8,
+    -- Grace period after the player stands up before the NPC leaves.
+    leaveDelay = 5000,
+
+    -- Spawn just behind the chair and let the ped walk onto the scenario point,
+    -- instead of dropping her directly into the seat.
+    spawnOffset = 1.2,
+
+    -- Baked scenario-point search around the configured chair.
+    pointSearchRadius = 2.0,
+    pointScanRadius = 6.0,
+    bakedScenarios = {
+        "PROP_HUMAN_SEAT_CHAIR_DRINKING",
+        "PROP_HUMAN_SEAT_CHAIR",
+        "PROP_HUMAN_SEAT_CHAIR_TABLE_DRINKING",
+    },
+
+    -- Only used when the script has to create a scenario point. Baked map
+    -- points keep their own Z.
     -- Use 0.0 if she sinks into the floor, or about -0.8 if she floats above the seat.
     zOffset = -0.5,
 }
