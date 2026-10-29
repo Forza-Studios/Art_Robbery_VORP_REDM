@@ -406,6 +406,18 @@ local function startDeliveryRoute()
     SetGpsMultiRouteRender(true)
 end
 
+local function playCarryAnim(ped)
+    local carry = Config.Heist.Carry
+    RequestAnimDict(carry.animDict)
+    while not HasAnimDictLoaded(carry.animDict) do Wait(0) end
+    TaskPlayAnim(ped, carry.animDict, carry.animName, 1.0, 8.0, -1, 25, 0, false, false, false)
+end
+
+local function stopCarryAnim(ped)
+    local carry = Config.Heist.Carry
+    StopAnimTask(ped, carry.animDict, carry.animName, 1.0)
+end
+
 local function pickUpStatue(prop)
     local ped = PlayerPedId()
     carriedProp = prop
@@ -422,7 +434,8 @@ local function pickUpStatue(prop)
             break
         end
     end
-    AttachEntityToEntity(prop, ped, GetEntityBoneIndexByName(ped, carry.bone),
+    playCarryAnim(ped)
+    AttachEntityToEntity(prop, ped, GetPedBoneIndex(ped, carry.bone),
         x, y, z, xRot, yRot, zRot,
         true, true, false, true, 1, true)
 
@@ -437,6 +450,7 @@ end
 local function dropStatue()
     local prop = carriedProp
     carriedProp = nil
+    stopCarryAnim(PlayerPedId())
     ClearGpsMultiRoute()
     if prop and DoesEntityExist(prop) then
         DetachEntity(prop, true, true)
@@ -451,6 +465,7 @@ end
 local function deliverStatue()
     local prop = carriedProp
     carriedProp = nil
+    stopCarryAnim(PlayerPedId())
     ClearGpsMultiRoute()
     if prop and DoesEntityExist(prop) then
         DetachEntity(prop, true, true)
@@ -460,10 +475,9 @@ local function deliverStatue()
     hideDeliveryBlip()
     showStatueBlips()
     deliveredCount = deliveredCount + 1
+    TriggerServerEvent('coi_art_rob:server:deliverStatue')
     if deliveredCount >= #Config.Heist.StatueLocations then
         TriggerEvent('vorp:TipRight', "All statues delivered!", 5000)
-    else
-        TriggerEvent('vorp:TipRight', "Statue delivered. Go get the next one.", 5000)
     end
 end
 
@@ -485,6 +499,11 @@ CreateThread(function()
                     local dest = vector3(d.coords.x, d.coords.y, d.coords.z)
                     local dist = #(playerCoords - dest)
                     hidePrompt(pickupPrompt)
+
+                    local carry = Config.Heist.Carry
+                    if not IsEntityPlayingAnim(playerPed, carry.animDict, carry.animName, 3) then
+                        playCarryAnim(playerPed)
+                    end
 
                     if dist < 80.0 then
                         wait = 0

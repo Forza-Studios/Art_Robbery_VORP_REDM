@@ -27,13 +27,17 @@ Config.Heist = {
         vector4(-231.0029, 842.0952, 123.2734, 0),
         -- Add more statue locations here
     },
+    Payout = 200, -- cash paid for each delivered statue
     PickupDistance = 2.5,
     PickupLabel = 'Pick Up Statue',
-    -- How the statue sits while carried (attached to the right hand). Tune these in game.
+    -- Carrying: the statue is attached to this ped bone (53675) with the placement from
+    -- Config.PropsLocationOnHands, falling back to offset/rotation below for unlisted models.
     Carry = {
-        bone = 'SKEL_R_Hand',
-        offset = vector3(0.15, 0.05, 0.0),
-        rotation = vector3(0.0, 90.0, 0.0),
+        bone = 53675,
+        offset = vector3(0.4, 0.4, -0.1),
+        rotation = vector3(45.0, -45.0, 0.0),
+        animDict = 'mech_pickup@camerabag@carried',
+        animName = 'grip_lt_arm',
     },
     Delivery = {
         coords = vector4(-245.1085, 846.6229, 123.8764, 116.9145),
