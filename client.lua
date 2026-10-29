@@ -351,6 +351,12 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
         -- Spawn Statue Prop
         local prop = CreateObject(model, coords.x, coords.y, coords.z, true, true, false)
         SetEntityHeading(prop, coords.w)
+        
+        -- Apply Statue Size
+         if Config.Heist.StatueSize and Config.Heist.StatueSize ~= 1.0 then
+             Citizen.InvokeNative(0xD5A1CD1284CB2495, prop, Config.Heist.StatueSize + 0.0) -- SET_ENTITY_SCALE
+         end
+
         PlaceObjectOnGroundProperly(prop)
         FreezeEntityPosition(prop, true)
         table.insert(heistProps, prop)

@@ -22,6 +22,7 @@ Config.Locations = {
 
 Config.Heist = {
     StatueModel = `p_cs_statue01x`, -- Example statue model
+    StatueSize = 5, -- Size of the statue prop
     StatueLocations = {
         vector4(-231.0029, 842.0952, 123.2734, 171.2677),
         -- Add more statue locations here
