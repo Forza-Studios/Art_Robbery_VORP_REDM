@@ -15,10 +15,18 @@ local SCENARIOS = {
 local activePeds = {}
 local activeBlips = {}
 local heistProps = {}
-local heistBlips = {}
+local statuePending = {} -- prop -> true while it still has to be delivered
 local heistPrompt
 local endHeistPrompt
 local heistStarted = false
+local carriedProp
+local deliveryBlip
+local deliveredCount = 0
+local statueBlips = {} -- prop -> blip, so a statue's map circle goes away once picked up
+local pickupGroup = GetRandomIntInRange(0, 0xffffff)
+local deliverGroup = GetRandomIntInRange(0, 0xffffff)
+local pickupPrompt
+local deliverPrompt
 local promptTargets = {} -- locationName -> label, for NPCs currently in prompt range
 local promptGroup = GetRandomIntInRange(0, 0xffffff)
 
@@ -328,6 +336,206 @@ CreateThread(function()
     end
 end)
 
+local function addAreaBlip(coords, radius, colorName, label)
+    local blip = Citizen.InvokeNative(0x45F13B7E0A15C880, -1282792512, coords.x, coords.y, coords.z, radius)
+    if blip and blip ~= 0 then
+        Citizen.InvokeNative(0x662D364ABF7265AC, blip, GetHashKey(colorName)) -- BLIP_ADD_MODIFIER
+        Citizen.InvokeNative(0x9CB1A1623062F402, blip, CreateVarString(10, 'LITERAL_STRING', label)) -- SET_BLIP_NAME
+        return blip
+    end
+end
+
+local function hideStatueBlips()
+    for prop, blip in pairs(statueBlips) do
+        RemoveBlip(blip)
+        statueBlips[prop] = nil
+    end
+end
+
+local function showStatueBlips()
+    for prop in pairs(statuePending) do
+        if DoesEntityExist(prop) and not statueBlips[prop] then
+            local blip = addAreaBlip(GetEntityCoords(prop), Config.Heist.Blip.radius, Config.Heist.Blip.color, Config.Heist.Blip.label)
+            if blip then statueBlips[prop] = blip end
+        end
+    end
+end
+
+local function hideDeliveryBlip()
+    if deliveryBlip then
+        RemoveBlip(deliveryBlip)
+        deliveryBlip = nil
+    end
+end
+
+local function showDeliveryBlip()
+    local d = Config.Heist.Delivery
+    hideDeliveryBlip()
+    deliveryBlip = addAreaBlip(d.coords, d.radius, d.color, d.label)
+end
+
+local function registerPrompt(text, group)
+    local prompt = PromptRegisterBegin()
+    PromptSetControlAction(prompt, Config.Prompt.control)
+    PromptSetText(prompt, CreateVarString(10, 'LITERAL_STRING', text))
+    PromptSetStandardMode(prompt, true)
+    PromptSetGroup(prompt, group)
+    PromptRegisterEnd(prompt)
+    PromptSetEnabled(prompt, false)
+    PromptSetVisible(prompt, false)
+    return prompt
+end
+
+local function showPrompt(prompt, group, title)
+    PromptSetEnabled(prompt, true)
+    PromptSetVisible(prompt, true)
+    PromptSetActiveGroupThisFrame(group, CreateVarString(10, 'LITERAL_STRING', title))
+    return PromptHasStandardModeCompleted(prompt, 0)
+end
+
+local function hidePrompt(prompt)
+    PromptSetEnabled(prompt, false)
+    PromptSetVisible(prompt, false)
+end
+
+local function startDeliveryRoute()
+    local d = Config.Heist.Delivery.coords
+    ClearGpsMultiRoute()
+    StartGpsMultiRoute(GetHashKey(Config.Heist.Delivery.route), true, true)
+    AddPointToGpsMultiRoute(d.x, d.y, d.z)
+    SetGpsMultiRouteRender(true)
+end
+
+local function pickUpStatue(prop)
+    local ped = PlayerPedId()
+    carriedProp = prop
+    FreezeEntityPosition(prop, false)
+    SetEntityCollision(prop, false, false)
+    local carry = Config.Heist.Carry
+    local x, y, z = carry.offset.x, carry.offset.y, carry.offset.z
+    local xRot, yRot, zRot = carry.rotation.x, carry.rotation.y, carry.rotation.z
+    local model = GetEntityModel(prop)
+    for name, placement in pairs(Config.PropsLocationOnHands) do
+        if GetHashKey(name) == model then
+            x, y, z = placement.x, placement.y, placement.z
+            xRot, yRot, zRot = placement.xRot, placement.yRot, placement.zRot
+            break
+        end
+    end
+    AttachEntityToEntity(prop, ped, GetEntityBoneIndexByName(ped, carry.bone),
+        x, y, z, xRot, yRot, zRot,
+        true, true, false, true, 1, true)
+
+    -- while carrying, only the delivery point is shown on the map
+    hideStatueBlips()
+    showDeliveryBlip()
+
+    startDeliveryRoute()
+    TriggerEvent('vorp:TipRight', "Carry the statue to the delivery point.", 5000)
+end
+
+local function dropStatue()
+    local prop = carriedProp
+    carriedProp = nil
+    ClearGpsMultiRoute()
+    if prop and DoesEntityExist(prop) then
+        DetachEntity(prop, true, true)
+        SetEntityCollision(prop, true, true)
+        PlaceObjectOnGroundProperly(prop)
+        FreezeEntityPosition(prop, true)
+    end
+    hideDeliveryBlip()
+    showStatueBlips()
+end
+
+local function deliverStatue()
+    local prop = carriedProp
+    carriedProp = nil
+    ClearGpsMultiRoute()
+    if prop and DoesEntityExist(prop) then
+        DetachEntity(prop, true, true)
+        DeleteObject(prop)
+    end
+    statuePending[prop] = nil
+    hideDeliveryBlip()
+    showStatueBlips()
+    deliveredCount = deliveredCount + 1
+    if deliveredCount >= #Config.Heist.StatueLocations then
+        TriggerEvent('vorp:TipRight', "All statues delivered!", 5000)
+    else
+        TriggerEvent('vorp:TipRight', "Statue delivered. Go get the next one.", 5000)
+    end
+end
+
+CreateThread(function()
+    pickupPrompt = registerPrompt(Config.Heist.PickupLabel, pickupGroup)
+    deliverPrompt = registerPrompt(Config.Heist.Delivery.prompt, deliverGroup)
+
+    while true do
+        local wait = 500
+        if heistStarted then
+            local playerPed = PlayerPedId()
+            local playerCoords = GetEntityCoords(playerPed)
+
+            if carriedProp then
+                if IsEntityDead(playerPed) then
+                    dropStatue()
+                else
+                    local d = Config.Heist.Delivery
+                    local dest = vector3(d.coords.x, d.coords.y, d.coords.z)
+                    local dist = #(playerCoords - dest)
+                    hidePrompt(pickupPrompt)
+
+                    if dist < 80.0 then
+                        wait = 0
+                        -- world cylinder matching the map circle (_DRAW_MARKER, type 0x94FDAE17 = cylinder)
+                        Citizen.InvokeNative(0x2A32FAA57B937173, 0x94FDAE17, dest.x, dest.y, dest.z - 1.0,
+                            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                            d.radius * 2.0, d.radius * 2.0, 3.0,
+                            d.marker.r, d.marker.g, d.marker.b, d.marker.a,
+                            false, false, 2, false, nil, nil, false)
+                    end
+
+                    if dist < d.radius then
+                        wait = 0
+                        if showPrompt(deliverPrompt, deliverGroup, d.label) then
+                            deliverStatue()
+                            Wait(1000)
+                        end
+                    else
+                        hidePrompt(deliverPrompt)
+                    end
+                end
+            else
+                hidePrompt(deliverPrompt)
+                local nearest
+                for _, prop in ipairs(heistProps) do
+                    if DoesEntityExist(prop) and statuePending[prop] then
+                        if #(playerCoords - GetEntityCoords(prop)) < Config.Heist.PickupDistance then
+                            nearest = prop
+                            break
+                        end
+                    end
+                end
+
+                if nearest then
+                    wait = 0
+                    if showPrompt(pickupPrompt, pickupGroup, 'Statue') then
+                        pickUpStatue(nearest)
+                        Wait(1000)
+                    end
+                else
+                    hidePrompt(pickupPrompt)
+                end
+            end
+        elseif pickupPrompt then
+            hidePrompt(pickupPrompt)
+            hidePrompt(deliverPrompt)
+        end
+        Wait(wait)
+    end
+end)
+
 RegisterNetEvent('coi_art_rob:client:startHeist')
 AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
     if heistStarted then return end
@@ -339,9 +547,10 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
 
     -- Clear any existing heist items just in case
     for _, prop in ipairs(heistProps) do DeleteObject(prop) end
-    for _, blip in ipairs(heistBlips) do RemoveBlip(blip) end
+    hideStatueBlips()
+    hideDeliveryBlip()
     heistProps = {}
-    heistBlips = {}
+    statuePending = {}
 
     local model = Config.Heist.StatueModel
     RequestModel(model)
@@ -361,18 +570,15 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
         FreezeEntityPosition(prop, true)
         table.insert(heistProps, prop)
 
-        -- Large round area blip (no sprite), tinted with a blip colour modifier
-        local blip = Citizen.InvokeNative(0x45F13B7E0A15C880, -1282792512, coords.x, coords.y, coords.z, Config.Heist.Blip.radius)
-        if blip and blip ~= 0 then
-            Citizen.InvokeNative(0x662D364ABF7265AC, blip, GetHashKey(Config.Heist.Blip.color)) -- BLIP_ADD_MODIFIER
-            local str = CreateVarString(10, 'LITERAL_STRING', Config.Heist.Blip.label)
-            Citizen.InvokeNative(0x9CB1A1623062F402, blip, str) -- SET_BLIP_NAME
-            table.insert(heistBlips, blip)
-        end
+        statuePending[prop] = true
     end
+
+    showStatueBlips()
 
     SetModelAsNoLongerNeeded(model)
     
+    deliveredCount = 0
+
     TriggerEvent('vorp:TipRight', "The Art Heist has begun! Find the statues marked on your map.", 5000)
 end)
 
@@ -386,9 +592,12 @@ AddEventHandler('coi_art_rob:client:endHeist', function()
     end
 
     for _, prop in ipairs(heistProps) do DeleteObject(prop) end
-    for _, blip in ipairs(heistBlips) do RemoveBlip(blip) end
+    hideStatueBlips()
+    hideDeliveryBlip()
     heistProps = {}
-    heistBlips = {}
+    statuePending = {}
+    carriedProp = nil
+    ClearGpsMultiRoute()
 
     TriggerEvent('vorp:TipRight', "The Art Heist has ended.", 5000)
 end)
@@ -410,12 +619,13 @@ AddEventHandler('onResourceStop', function(resourceName)
         DeleteObject(prop)
     end
 
-    for _, blip in ipairs(heistBlips) do
-        if blip and type(blip) == "number" and blip ~= 0 then
-            RemoveBlip(blip)
-        end
-    end
-    
+    hideStatueBlips()
+    hideDeliveryBlip()
+
+    ClearGpsMultiRoute()
+    if pickupPrompt then PromptDelete(pickupPrompt) end
+    if deliverPrompt then PromptDelete(deliverPrompt) end
+
     if endHeistPrompt then
         PromptDelete(endHeistPrompt)
     end

@@ -27,6 +27,23 @@ Config.Heist = {
         vector4(-231.0029, 842.0952, 123.2734, 0),
         -- Add more statue locations here
     },
+    PickupDistance = 2.5,
+    PickupLabel = 'Pick Up Statue',
+    -- How the statue sits while carried (attached to the right hand). Tune these in game.
+    Carry = {
+        bone = 'SKEL_R_Hand',
+        offset = vector3(0.15, 0.05, 0.0),
+        rotation = vector3(0.0, 90.0, 0.0),
+    },
+    Delivery = {
+        coords = vector4(-245.1085, 846.6229, 123.8764, 116.9145),
+        radius = 4.0,                           -- size of both the map circle and the world cylinder
+        color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
+        marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
+        label = 'Statue Delivery',
+        prompt = 'Deliver Statue',
+        route = 'COLOR_YELLOW',                 -- GPS route colour while carrying
+    },
     Blip = {
         radius = 100.0,                         -- size of the round area on the map
         color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
@@ -37,16 +54,25 @@ Config.Heist = {
 
 
 
-statue.delivery.loc = {
-    vector4(-245.1085, 846.6229, 123.8764, 116.9145),
+
+payout = 200
+
+
+
+
+
+
+-- Per-model carry placement (attached to the player's hand bone). Falls back to Config.Heist.Carry.
+Config.PropsLocationOnHands = {
+    ["p_gen_statue02b"] = {
+        x = 0.8,
+        y = 0.8,
+        z = -0.4,
+        xRot = 45.0,
+        yRot = -45.00,
+        zRot = 0.0,
+    },
 }
-
-
-
-
-
-
-
 
 Config.EndPrompt = {
     label = 'End Art Heist',
