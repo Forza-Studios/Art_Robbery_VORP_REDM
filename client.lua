@@ -15,24 +15,20 @@ local SCENARIOS = {
 local activePeds = {}
 local activeBlips = {}
 local heistPrompt
+local promptTargets = {} -- locationName -> label, for NPCs currently in prompt range
+local promptGroup = GetRandomIntInRange(0, 0xffffff)
 
 local function RegisterHeistPrompt()
     local str = CreateVarString(10, 'LITERAL_STRING', Config.Prompt.label)
     heistPrompt = PromptRegisterBegin()
     PromptSetControlAction(heistPrompt, Config.Prompt.control)
     PromptSetText(heistPrompt, str)
-    PromptSetStandardMode(heistPrompt, 1) -- Press mode
-    
-    -- IMPORTANT: Allow prompt to trigger even if not looking at the NPC
-    Citizen.InvokeNative(0x560E76D5E2E8E3CB, heistPrompt, true) -- _PROMPT_SET_ATTRIBUTE (Attribute 1: Can be triggered without targeting)
-    
+    PromptSetStandardMode(heistPrompt, true)
+    PromptSetGroup(heistPrompt, promptGroup) -- must be set before PromptRegisterEnd
     PromptRegisterEnd(heistPrompt)
     PromptSetEnabled(heistPrompt, false)
     PromptSetVisible(heistPrompt, false)
 end
-
--- PLAY_PED_AMBIENT_SPEECH_NATIVE takes a struct buffer on this build (same approach as coi_gunstore).
-local SPEECH_PARAM_DEFAULT = 291934926
 
 local function say(ped, speech)
     -- Same approach as Redm_Raiways_VORP/client/rob.lua: check the ped can say the line, then play it.
@@ -145,33 +141,12 @@ local function runPedLogic(locationName, data)
                 local aimed = distToPlayer < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
                 local shot = distToPlayer < 25.0 and IsPedShooting(playerPed)
 
-                -- Prompt handling
+                -- Prompt handling: the per-frame drawing lives in its own thread (see below),
+                -- because this loop's wait changes with the NPC state and would make the prompt flicker.
                 if distToPlayer < Config.Prompt.distance and state ~= 'handsup' and state ~= 'flee' then
-                    wait = 0 -- Faster loop when close for responsive prompt
-                    
-                    PromptSetEnabled(heistPrompt, true)
-                    PromptSetVisible(heistPrompt, true)
-                    
-                    -- Force the prompt to show up in a global group if entity targeting is failing
-                    local group = PromptGetGroupIdForTargetEntity(ped)
-                    if group and group ~= 0 then
-                        PromptSetGroup(heistPrompt, group)
-                        Citizen.InvokeNative(0xC5FBA0830A658144, group, CreateVarString(10, 'LITERAL_STRING', data.label or locationName))
-                    end
-
-                    if PromptHasStandardModeCompleted(heistPrompt) then
-                        TriggerEvent('coi_art_rob:client:startHeist', locationName)
-                        if Config.Debug then
-                            print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
-                        end
-                        Wait(1000) -- Prevent double trigger
-                    end
+                    promptTargets[locationName] = data.label or locationName
                 else
-                    -- Hide prompt when out of range or in wrong state
-                    if heistPrompt then
-                        PromptSetEnabled(heistPrompt, false)
-                        PromptSetVisible(heistPrompt, false)
-                    end
+                    promptTargets[locationName] = nil
                 end
 
                 -- Keep the NPC chatting even when no player is nearby.
@@ -268,6 +243,7 @@ local function runPedLogic(locationName, data)
                 Wait(wait)
             end
 
+            promptTargets[locationName] = nil
             local resource = GetCurrentResourceName()
             Wait(RESPAWN_DELAY)
             if GetResourceState(resource) ~= 'started' then return end
@@ -279,6 +255,29 @@ end
 
 CreateThread(function()
     RegisterHeistPrompt()
+    while true do
+        local locationName, label = next(promptTargets)
+        if locationName then
+            PromptSetEnabled(heistPrompt, true)
+            PromptSetVisible(heistPrompt, true)
+            PromptSetActiveGroupThisFrame(promptGroup, CreateVarString(10, 'LITERAL_STRING', label))
+            if PromptHasStandardModeCompleted(heistPrompt, 0) then
+                TriggerEvent('coi_art_rob:client:startHeist', locationName)
+                if Config.Debug then
+                    print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
+                end
+                Wait(1000) -- Prevent double trigger
+            end
+            Wait(0)
+        else
+            PromptSetEnabled(heistPrompt, false)
+            PromptSetVisible(heistPrompt, false)
+            Wait(250)
+        end
+    end
+end)
+
+CreateThread(function()
     for name, data in pairs(Config.Locations) do
         -- Create blip if sprite is defined (using first point in path)
         if data.sprite then

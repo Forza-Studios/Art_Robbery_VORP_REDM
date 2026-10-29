@@ -20,7 +20,7 @@ Config.PathNodeWaitMax = 10000 -- Maximum milliseconds to wait at a path node
 
 Config.Prompt = {
     label = 'Start Art Heist',
-    control = 0xCEFD9220, -- INPUT_CONTEXT_A (Standard Interaction Key)
+    control = 0xC7B5340A, -- INPUT_FRONTEND_ACCEPT (Enter / Numpad Enter)
     distance = 4.0
 }
 
