@@ -13,7 +13,7 @@ RegisterServerEvent('coi_art_rob:server:deliverStatue', function(locationName, d
     local now = GetGameTimer()
     if lastPayout[src] and now - lastPayout[src] < PAYOUT_COOLDOWN then return end
 
-    local delivery = type(deliveryIndex) == 'number' and Config.Heist.Delivery[deliveryIndex]
+    local delivery = type(deliveryIndex) == 'number' and Config.GetDeliveryPoints()[deliveryIndex]
     if not delivery then return end
 
     local ped = GetPlayerPed(src)

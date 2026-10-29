@@ -337,8 +337,10 @@ CreateThread(function()
     end
 end)
 
+local deliveryPoints
 local function activeDeliveries()
-    return Config.Heist.Delivery
+    deliveryPoints = deliveryPoints or Config.GetDeliveryPoints()
+    return deliveryPoints
 end
 
 local function addAreaBlip(coords, radius, colorName, label)

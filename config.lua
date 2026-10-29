@@ -25,30 +25,23 @@ Config.Heist = {
     StatueSize = 5, -- Size of the statue prop
     StatueLocations = {
         vector4(-248.3603, 780.0131, 118.3014, 0),
+        vector4(-244.5420, 779.2379, 118.1971, 322.8801),
         -- Add more statue locations here
     },
-    -- Delivery points (add as many as you like, same as StatueLocations).
+    -- Delivery points: settings are shared, so to add a point just add its coords to `locations`.
     -- While carrying, every point is shown and the statue can be delivered at any of them.
     Delivery = {
-        {
-            coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
-            radius = 4.0,                           -- size of the world cylinder and the delivery trigger area
-            blipRadius = 100.0,                     -- size of the round area on the map (same idea as Blip.radius)
-            color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
-            marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
-            label = 'Statue Delivery',
-            prompt = 'Deliver Statue',
+        radius = 4.0,                           -- size of the world cylinder and the delivery trigger area
+        blipRadius = 100.0,                     -- size of the round area on the map (same idea as Blip.radius)
+        color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
+        marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
+        label = 'Statue Delivery',
+        prompt = 'Deliver Statue',
+        locations = {
+            vector4(-268.7309, 776.7904, 118.9298, 99.2943),
+            vector4(-251.9256, 765.0274, 117.2738, 206.6767),
+            -- Add more delivery locations here
         },
-        {
-            coords = vector4(-251.9256, 765.0274, 117.2738, 206.6767),
-            radius = 4.0,
-            blipRadius = 100.0,
-            color = 'BLIP_MODIFIER_MP_COLOR_32',
-            marker = { r = 255, g = 200, b = 0, a = 120 },
-            label = 'Statue Delivery',
-            prompt = 'Deliver Statue',
-        },
-        -- { coords = vector4(x, y, z, h), radius = 4.0, blipRadius = 100.0, color = '...', marker = {...}, label = '...', prompt = '...' },
     },
     -- Map circle shown on each statue before it is picked up.
     Blip = {
@@ -129,3 +122,16 @@ Config.WanderChance = 0.65
 Config.WanderIntervalMin = 15000 -- milliseconds
 Config.WanderIntervalMax = 30000 -- milliseconds
 Config.WanderDuration = 12000 -- milliseconds spent walking/animating at the random point
+
+-- Delivery points as a list of { coords, radius, blipRadius, color, marker, label, prompt } (shared settings + each coords).
+function Config.GetDeliveryPoints()
+    local points = {}
+    for i, coords in ipairs(Config.Heist.Delivery.locations) do
+        local point = { coords = coords }
+        for key, value in pairs(Config.Heist.Delivery) do
+            if key ~= 'locations' then point[key] = value end
+        end
+        points[i] = point
+    end
+    return points
+end
