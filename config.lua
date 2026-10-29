@@ -21,10 +21,10 @@ Config.Locations = {
 
 
 Config.Heist = {
-    StatueModel = `p_cs_statue01x`, -- Example statue model
+    StatueModel = `p_gen_statue02b`, -- Example statue model
     StatueSize = 5, -- Size of the statue prop
     StatueLocations = {
-        vector4(-231.0029, 842.0952, 123.2734, 171.2677),
+        vector4(-231.0029, 842.0952, 123.2734, 0),
         -- Add more statue locations here
     },
     Blip = {
@@ -33,6 +33,20 @@ Config.Heist = {
         label = 'Find the Statue'
     }
 }
+
+
+
+
+statue.delivery.loc = {
+    vector4(-245.1085, 846.6229, 123.8764, 116.9145),
+}
+
+
+
+
+
+
+
 
 Config.EndPrompt = {
     label = 'End Art Heist',
