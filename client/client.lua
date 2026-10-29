@@ -224,6 +224,28 @@ local function RemoveNpc()
     npc = nil
 end
 
+--[[
+    Previous chair auto-detection experiment (disabled).
+
+-- Finds the closest chair prop around the given coords.
+local function FindChair(coords)
+    local best, bestDist = nil, (Config.Npc.chairSearchRadius or 3.0)
+
+    for _, name in ipairs(Config.Npc.chairModels) do
+        local obj = GetClosestObjectOfType(coords.x, coords.y, coords.z, bestDist, GetHashKey(name), false, false, false)
+
+        if obj and obj ~= 0 and DoesEntityExist(obj) then
+            local dist = #(GetEntityCoords(obj) - vector3(coords.x, coords.y, coords.z))
+            if dist <= bestDist then
+                best, bestDist = obj, dist
+            end
+        end
+    end
+
+    return best
+end
+]]
+
 local function SpawnNpc()
     if npc and DoesEntityExist(npc) then
         return
@@ -245,24 +267,19 @@ local function SpawnNpc()
     npc = ped
     repeat Wait(0) until DoesEntityExist(npc)
 
-    Citizen.InvokeNative(0x283978A15512B2FE, npc, true) -- SetRandomOutfitVariation
-    while not Citizen.InvokeNative(0xA0BC8FAED8CFEB3C, npc) do Wait(0) end -- IsPedReadyToRender
-
     SetEntityAsMissionEntity(npc, true, true)
     SetEntityVisible(npc, true)
+    SetRandomOutfitVariation(npc, true)
     SetBlockingOfNonTemporaryEvents(npc, true)
     SetPedKeepTask(npc, true)
     SetPedCanBeTargetted(npc, false)
     SetEntityInvincible(npc, true)
     SetPedFleeAttributes(npc, 0, false)
 
-    TaskStartScenarioInPlaceHash(npc, GetHashKey(cfg.scenario), 0, true, 0, 0, false)
-
-    SetTimeout(1000, function()
-        if npc and DoesEntityExist(npc) then
-            FreezeEntityPosition(npc, true)
-        end
-    end)
+    -- Lock the ped before starting the scenario so she cannot fall through the
+    -- floor or slide off the chair, then force the permanent sitting scenario.
+    FreezeEntityPosition(npc, true)
+    TaskStartScenarioInPlaceHash(npc, GetHashKey(cfg.scenario), -1, true, 0, 0, false)
 
     local coords = GetEntityCoords(npc)
     print(("[coi_art_rob] NPC spawned at %.2f, %.2f, %.2f"):format(coords.x, coords.y, coords.z))

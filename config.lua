@@ -42,9 +42,13 @@ Config = {}
 
 -- NPC sitting on the chair and drinking.
 Config.Npc = {
+    -- Female story ped. Swap for any female model from the local ped list
+    -- (for example "a_f_m_valtownfolk_01") if you prefer a generic townsperson.
     model = "rcsp_beauandpenelope1_females_01",
+    -- Chair X, Y, Z and heading. The heading is the direction the chair faces.
     coords = { x = -244.0550, y = 772.1157, z = 116.5846, h = 199.8500 },
     scenario = "PROP_HUMAN_SEAT_CHAIR_DRINKING",
-    -- Raise/lower the ped if she clips into the chair or floor.
-    zOffset = 0.0,
+    -- Chair coords are taken at seat height, so drop to floor level by default.
+    -- Use 0.0 if she sinks into the floor, or about -0.8 if she floats above the seat.
+    zOffset = -0.5,
 }
