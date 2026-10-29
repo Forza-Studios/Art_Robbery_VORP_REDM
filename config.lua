@@ -4,7 +4,7 @@ Config.Locations = {
     ['valentine'] = {
         model = `cs_valprostitute_02`,
         coords = vector4(-238.9870, 770.3414, 117.0950, 108.0667),
-        sprite= 1420154945
+        sprite = 1420154945,
         label = 'Meet Jessie'
     },
 }

@@ -210,8 +210,12 @@ CreateThread(function()
     for name, data in pairs(Config.Locations) do
         -- Create blip if sprite is defined
         if data.sprite then
-            local blip = Citizen.InvokeNative(0x554D5D790A110452, data.sprite, data.coords.x, data.coords.y, data.coords.z)
-            Citizen.InvokeNative(0x9CB1A1623062F402, blip, name) -- Set blip name
+            -- styleHash 1664425300 is a generic blip style for RedM
+            local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, data.coords.x, data.coords.y, data.coords.z)
+            SetBlipSprite(blip, data.sprite, true)
+            SetBlipScale(blip, 1.0)
+            local varString = VarString(10, 'LITERAL_STRING', data.label or name)
+            Citizen.InvokeNative(0x9CB1A1623062F402, blip, varString)
             activeBlips[name] = blip
         end
 
