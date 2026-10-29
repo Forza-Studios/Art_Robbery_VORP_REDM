@@ -14,6 +14,18 @@ local SCENARIOS = {
 
 local activePeds = {}
 local activeBlips = {}
+local heistPrompt
+
+local function RegisterHeistPrompt()
+    local str = CreateVarString(10, 'LITERAL_STRING', Config.Prompt.label)
+    heistPrompt = PromptRegisterBegin()
+    PromptSetControlAction(heistPrompt, Config.Prompt.control)
+    PromptSetText(heistPrompt, str)
+    PromptSetStandardMode(heistPrompt, 1) -- Press mode
+    PromptRegisterEnd(heistPrompt)
+    PromptSetEnabled(heistPrompt, false)
+    PromptSetVisible(heistPrompt, false)
+end
 
 -- PLAY_PED_AMBIENT_SPEECH_NATIVE takes a struct buffer on this build (same approach as coi_gunstore).
 local SPEECH_PARAM_DEFAULT = 291934926
@@ -121,6 +133,27 @@ local function runPedLogic(locationName, data)
                 local aimed = distToPlayer < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
                 local shot = distToPlayer < 25.0 and IsPedShooting(playerPed)
 
+                -- Prompt handling
+                if distToPlayer < Config.Prompt.distance and state ~= 'handsup' and state ~= 'flee' then
+                    wait = 0 -- Faster loop when close for responsive prompt
+                    local group = PromptGetGroupIdForTargetEntity(ped)
+                    
+                    PromptSetEnabled(heistPrompt, true)
+                    PromptSetVisible(heistPrompt, true)
+                    PromptSetGroup(heistPrompt, group)
+                    
+                    -- RedM requires the group to be active this frame to show the prompt
+                    Citizen.InvokeNative(0xC5FBA0830A658144, group, CreateVarString(10, 'LITERAL_STRING', data.label or locationName))
+
+                    if PromptHasStandardModeCompleted(heistPrompt) then
+                        TriggerEvent('coi_art_rob:client:startHeist', locationName)
+                        if Config.Debug then
+                            print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
+                        end
+                        Wait(1000) -- Prevent double trigger
+                    end
+                end
+
                 -- Keep the NPC chatting even when no player is nearby.
                 if now - lastChatter >= CHATTER_INTERVAL and state ~= 'handsup' and state ~= 'flee' then
                     lastChatter = now
@@ -225,16 +258,20 @@ local function runPedLogic(locationName, data)
 end
 
 CreateThread(function()
+    RegisterHeistPrompt()
     for name, data in pairs(Config.Locations) do
         -- Create blip if sprite is defined (using first point in path)
         if data.sprite then
             local firstPoint = data.path[1]
-            local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, firstPoint.x, firstPoint.y, firstPoint.z)
-            SetBlipSprite(blip, data.sprite, true)
-            SetBlipScale(blip, 1.0)
-            local varString = VarString(10, 'LITERAL_STRING', data.label or name)
-            Citizen.InvokeNative(0x9CB1A1623062F402, blip, varString)
-            activeBlips[name] = blip
+            local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, firstPoint.x, firstPoint.y, firstPoint.z, Citizen.ResultAsInteger())
+            
+            if blip and blip ~= 0 then
+                SetBlipSprite(blip, data.sprite, true)
+                SetBlipScale(blip, 1.0)
+                local varString = VarString(10, 'LITERAL_STRING', data.label or name)
+                Citizen.InvokeNative(0x9CB1A1623062F402, blip, varString)
+                activeBlips[name] = blip
+            end
         end
 
         if not IsModelValid(data.model) then
@@ -245,12 +282,22 @@ CreateThread(function()
     end
 end)
 
+RegisterNetEvent('coi_art_rob:client:startHeist', function(location)
+    -- Placeholder for the heist logic
+    print('^2[coi_art_rob] Heist started at ' .. location .. '^7')
+end)
+
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
     for _, ped in pairs(activePeds) do
         deletePed(ped)
     end
     for _, blip in pairs(activeBlips) do
-        RemoveBlip(blip)
+        if blip and type(blip) == 'number' and DoesBlipExist(blip) then
+            RemoveBlip(blip)
+        end
+    end
+    if heistPrompt then
+        PromptDelete(heistPrompt)
     end
 end)
