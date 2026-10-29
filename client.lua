@@ -2,11 +2,11 @@ local PED_MODEL = Config.PedModel
 local PED_COORDS = Config.PedCoords
 local POST = vector3(PED_COORDS.x, PED_COORDS.y, PED_COORDS.z)
 
-local NOTICE_DISTANCE = 10.0
+local NOTICE_DISTANCE = Config.ChatterDistance
 local TALK_DISTANCE = 3.0
 local FORGET_DISTANCE = 6.0
-local WANDER_RADIUS = 3.0
-local CHATTER_INTERVAL = 20000
+local WANDER_RADIUS = Config.WanderRadius
+local CHATTER_INTERVAL = Config.ChatterInterval
 local RESPAWN_DELAY = 60000
 
 local SCENARIOS = {
@@ -16,16 +16,43 @@ local SCENARIOS = {
     'WORLD_HUMAN_WRITE_NOTEBOOK',
 }
 
-local LINES = {
-    'Evenin\', stranger. Keep your voice down - the walls have ears around here.',
-    'You\'re new. Folks say the big paintings in town are worth more than the people who own them...',
-    'Not many come this way after dark. Looking for something in particular?',
-}
-
 local shopPed
 
 local function say(ped, speech)
-    PlayPedAmbientSpeechNative(ped, speech, 'SPEECH_PARAMS_FORCE_NORMAL')
+    -- Verify the line exists for this particular ped before playing it.
+    local canSpeak = Citizen.InvokeNative(
+        0x9D6DEC9791A4E501,
+        ped,
+        speech,
+        0,
+        1,
+        Citizen.ResultAsInteger()
+    )
+
+    if canSpeak and canSpeak ~= 0 then
+        PlayPedAmbientSpeechNative(ped, speech, Config.SpeechParam)
+        return true
+    end
+
+    return false
+end
+
+local function speakRandomLine(ped)
+    local lines = {}
+    for index, line in ipairs(Config.VoiceLines) do
+        lines[index] = line
+    end
+
+    for index = #lines, 2, -1 do
+        local randomIndex = math.random(index)
+        lines[index], lines[randomIndex] = lines[randomIndex], lines[index]
+    end
+
+    for _, line in ipairs(lines) do
+        if say(ped, line) then
+            return
+        end
+    end
 end
 
 local function spawnPed()
@@ -78,8 +105,9 @@ CreateThread(function()
 
         local state = 'idle'        -- idle | wander | talk | handsup | flee | returning
         local stateUntil = 0
-        local nextIdleChange = GetGameTimer() + math.random(20000, 40000)
+        local nextIdleChange = GetGameTimer() + math.random(Config.WanderIntervalMin, Config.WanderIntervalMax)
         local lastChatter = 0
+        local wanderPoint
 
         startIdle(ped)
 
@@ -91,18 +119,24 @@ CreateThread(function()
             local aimed = dist < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
             local shot = dist < 25.0 and IsPedShooting(playerPed)
 
+            -- Keep the NPC chatting even when no player is nearby.
+            if now - lastChatter >= CHATTER_INTERVAL and state ~= 'handsup' and state ~= 'flee' then
+                lastChatter = now
+                speakRandomLine(ped)
+            end
+
             if aimed and state ~= 'handsup' then
                 -- held at gunpoint
                 state, stateUntil = 'handsup', now + 6000
                 ClearPedTasks(ped)
                 TaskHandsUp(ped, 6000, playerPed, 0, false)
-                say(ped, 'GUN_BEG')
+                say(ped, 'SCARED_COMMUNICATE')
             elseif shot and state ~= 'flee' and state ~= 'handsup' then
                 -- gunfire nearby
                 state, stateUntil = 'flee', now + 12000
                 ClearPedTasks(ped)
                 TaskSmartFleePed(ped, playerPed, 100.0, 12000, false, false)
-                say(ped, 'SCARED')
+                say(ped, 'SCARED_COMMUNICATE')
             elseif state == 'handsup' or state == 'flee' then
                 wait = 250
                 if now > stateUntil and not aimed then
@@ -119,20 +153,13 @@ CreateThread(function()
                 wait = 100
                 if state ~= 'talk' then
                     state = 'talk'
-                    lastChatter = now
                     ClearPedTasks(ped)
                     TaskTurnPedToFaceEntity(ped, playerPed, 2000)
                     TaskLookAtEntity(ped, playerPed, -1, 2048, 3, 0)
-                    say(ped, 'GREET')
-                    TriggerEvent('vorp:TipRight', LINES[math.random(#LINES)], 6000)
-                elseif now - lastChatter > CHATTER_INTERVAL then
-                    lastChatter = now
-                    say(ped, 'GENERIC_WHATEVER')
-                    TriggerEvent('vorp:TipRight', LINES[math.random(#LINES)], 6000)
                 end
             elseif state == 'talk' then
                 if dist > FORGET_DISTANCE then
-                    say(ped, 'GOODBYE')
+                    say(ped, 'GENERIC_GOODBYE')
                     TaskClearLookAt(ped)
                     state = 'returning'
                     walkTo(ped, POST, PED_COORDS.w)
@@ -145,14 +172,21 @@ CreateThread(function()
 
                 if state == 'wander' and now > stateUntil then
                     state = 'returning'
+                    wanderPoint = nil
                     walkTo(ped, POST, PED_COORDS.w)
+                elseif state == 'wander' and wanderPoint and #(GetEntityCoords(ped) - wanderPoint) < 1.0 then
+                    -- The random point was reached: play an idle animation there
+                    -- until it is time to return to the original spawn point.
+                    startIdle(ped)
+                    wanderPoint = nil
                 elseif state == 'idle' and now > nextIdleChange then
-                    nextIdleChange = now + math.random(20000, 40000)
-                    if math.random() < 0.4 then
+                    nextIdleChange = now + math.random(Config.WanderIntervalMin, Config.WanderIntervalMax)
+                    if math.random() < Config.WanderChance then
                         local a = math.random() * 2.0 * math.pi
-                        local r = math.random() * WANDER_RADIUS
-                        state, stateUntil = 'wander', now + 10000
-                        walkTo(ped, vector3(POST.x + math.cos(a) * r, POST.y + math.sin(a) * r, POST.z))
+                        local r = math.random(100, math.floor(WANDER_RADIUS * 100)) / 100
+                        wanderPoint = vector3(POST.x + math.cos(a) * r, POST.y + math.sin(a) * r, POST.z)
+                        state, stateUntil = 'wander', now + Config.WanderDuration
+                        walkTo(ped, wanderPoint)
                     else
                         startIdle(ped)
                     end
