@@ -18,23 +18,35 @@ local SCENARIOS = {
 
 local shopPed
 
-local function say(ped, speech)
-    -- Verify the line exists for this particular ped before playing it.
-    local canSpeak = Citizen.InvokeNative(
-        0x9D6DEC9791A4E501,
-        ped,
-        speech,
-        0,
-        1,
-        Citizen.ResultAsInteger()
-    )
+-- PLAY_PED_AMBIENT_SPEECH_NATIVE takes a struct buffer on this build (same approach as coi_gunstore).
+local SPEECH_PARAM_DEFAULT = 291934926
 
-    if canSpeak and canSpeak ~= 0 then
-        PlayPedAmbientSpeechNative(ped, speech, Config.SpeechParam)
-        return true
+local function buildSpeechBuffer(name, bank, line)
+    local ok, buf = pcall(function()
+        return string.pack("<j j i4 x4 j i4 x4 i4 x4 i4 x4",
+            VarString(10, 'LITERAL_STRING', name, Citizen.ResultAsLong()),
+            VarString(10, 'LITERAL_STRING', bank, Citizen.ResultAsLong()),
+            line,
+            SPEECH_PARAM_DEFAULT,
+            0,
+            0,
+            1)
+    end)
+    return ok and buf or nil
+end
+
+local function say(ped, speech)
+    -- Same approach as Redm_Raiways_VORP/client/rob.lua: check the ped can say the line, then play it.
+    local can = Citizen.InvokeNative(0x9D6DEC9791A4E501, ped, speech, 0, 1, Citizen.ResultAsInteger())
+    if not can or can == 0 then
+        return false
     end
 
-    return false
+    local ok, err = pcall(PlayPedAmbientSpeechNative, ped, speech, Config.SpeechParam)
+    if Config.Debug then
+        print(('[coi_art_rob] %s -> %s'):format(speech, ok and 'played' or tostring(err)))
+    end
+    return ok
 end
 
 local function speakRandomLine(ped)
@@ -70,6 +82,7 @@ local function spawnPed()
     -- the script drives the reactions, so native auto-reactions stay off
     SetBlockingOfNonTemporaryEvents(ped, true)
     SetPedCanRagdoll(ped, true)
+    SetEntityInvincible(ped, Config.Invincible)
 
     SetModelAsNoLongerNeeded(PED_MODEL)
     return ped
