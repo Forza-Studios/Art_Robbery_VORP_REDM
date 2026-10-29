@@ -5,15 +5,38 @@ Config.Locations = {
         model = `cs_valprostitute_02`,
         path = {
             vector4(-238.9870, 770.3414, 117.0950, 108.0667),  -- the first cord will pick for sprite on map blip position 
-            vector4(-247.0715, 766.0087, 118.1284, 126.7618),
+            vector4(-247.0715, 766.0087, 118.1284, 126.7618),  --- these are the path nodes which npc will roam around
             vector4(-248.5659, 771.9250, 118.1250, 47.1462),
             vector4(-247.9131, 768.4742, 118.1269, 121.2006),
             vector4(-242.4385, 769.7139, 118.0850, 107.1163),
         },
-        sprite = 1420154945,
+        sprite = -1954662204,
         label = 'Meet Jessie'
     },
 }
+
+
+
+
+
+
+Config.Heist = {
+    StatueModel = `p_cs_statue_01x`, -- Example statue model
+    StatueLocations = {
+        vector4(-231.0029, 842.0952, 123.2734, 171.2677),
+        -- Add more statue locations here
+    },
+    Blip = {
+        sprite = 1370219805, -- Large dot sprite
+        color = 25,          -- Green color in RedM
+        scale = 0.2,
+        label = 'Stolen Statue'
+    }
+}
+
+
+
+
 
 Config.PathNodeWaitMin = 5000  -- Minimum milliseconds to wait at a path node
 Config.PathNodeWaitMax = 10000 -- Maximum milliseconds to wait at a path node

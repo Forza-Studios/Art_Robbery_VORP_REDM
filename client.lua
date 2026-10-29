@@ -14,6 +14,8 @@ local SCENARIOS = {
 
 local activePeds = {}
 local activeBlips = {}
+local heistProps = {}
+local heistBlips = {}
 local heistPrompt
 local promptTargets = {} -- locationName -> label, for NPCs currently in prompt range
 local promptGroup = GetRandomIntInRange(0, 0xffffff)
@@ -301,21 +303,70 @@ CreateThread(function()
     end
 end)
 
-RegisterNetEvent('coi_art_rob:client:startHeist', function(location)
-    -- Placeholder for the heist logic
-    print('^2[coi_art_rob] Heist started at ' .. location .. '^7')
+RegisterNetEvent('coi_art_rob:client:startHeist')
+AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
+    if Config.Debug then
+        print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
+    end
+
+    -- Clear any existing heist items just in case
+    for _, prop in ipairs(heistProps) do DeleteObject(prop) end
+    for _, blip in ipairs(heistBlips) do RemoveBlip(blip) end
+    heistProps = {}
+    heistBlips = {}
+
+    local model = Config.Heist.StatueModel
+    RequestModel(model)
+    while not HasModelLoaded(model) do Wait(0) end
+
+    for i, coords in ipairs(Config.Heist.StatueLocations) do
+        -- Spawn Statue Prop
+        local prop = CreateObject(model, coords.x, coords.y, coords.z, true, true, false)
+        SetEntityHeading(prop, coords.w)
+        PlaceObjectOnGroundProperly(prop)
+        FreezeEntityPosition(prop, true)
+        table.insert(heistProps, prop)
+
+        -- Create Green Blip
+        local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, coords.x, coords.y, coords.z, Citizen.ResultAsInteger())
+        if blip and blip ~= 0 then
+            SetBlipSprite(blip, Config.Heist.Blip.sprite, true)
+            SetBlipScale(blip, Config.Heist.Blip.scale)
+            Citizen.InvokeNative(0x662D364ABF7265AC, blip, Config.Heist.Blip.color) -- SET_BLIP_COLOUR
+            local str = CreateVarString(10, 'LITERAL_STRING', Config.Heist.Blip.label)
+            Citizen.InvokeNative(0x9CB1A1623062F402, blip, str) -- SET_BLIP_NAME
+            table.insert(heistBlips, blip)
+        end
+    end
+
+    SetModelAsNoLongerNeeded(model)
+    
+    TriggerEvent('vorp:TipRight', "The Art Heist has begun! Find the statues marked on your map.", 5000)
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
-    if resourceName ~= GetCurrentResourceName() then return end
+    if GetCurrentResourceName() ~= resourceName then return end
+    
     for _, ped in pairs(activePeds) do
         deletePed(ped)
     end
+    
     for _, blip in pairs(activeBlips) do
-        if blip and type(blip) == 'number' and DoesBlipExist(blip) then
+        if blip and type(blip) == "number" and blip ~= 0 then
             RemoveBlip(blip)
         end
     end
+
+    for _, prop in ipairs(heistProps) do
+        DeleteObject(prop)
+    end
+
+    for _, blip in ipairs(heistBlips) do
+        if blip and type(blip) == "number" and blip ~= 0 then
+            RemoveBlip(blip)
+        end
+    end
+    
     if heistPrompt then
         PromptDelete(heistPrompt)
     end
