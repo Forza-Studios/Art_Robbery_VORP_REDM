@@ -8,15 +8,18 @@ end)
 local lastPayout = {} -- source -> GetGameTimer() of their last payout
 local PAYOUT_COOLDOWN = 2000
 
-RegisterServerEvent('coi_art_rob:server:deliverStatue', function()
+RegisterServerEvent('coi_art_rob:server:deliverStatue', function(locationName)
     local src = source
     local now = GetGameTimer()
     if lastPayout[src] and now - lastPayout[src] < PAYOUT_COOLDOWN then return end
 
+    local location = Config.Locations[locationName]
+    if not location then return end
+
     local ped = GetPlayerPed(src)
     if not ped or ped == 0 then return end
-    local d = Config.Heist.Delivery.coords
-    if #(GetEntityCoords(ped) - vector3(d.x, d.y, d.z)) > Config.Heist.Delivery.radius + 10.0 then return end
+    local d = location.Delivery.coords
+    if #(GetEntityCoords(ped) - vector3(d.x, d.y, d.z)) > location.Delivery.radius + 10.0 then return end
 
     local user = VORPcore.getUser(src)
     if not user then return end
@@ -26,7 +29,12 @@ RegisterServerEvent('coi_art_rob:server:deliverStatue', function()
     lastPayout[src] = now
     local amount = Config.Heist.Payout
     character.addCurrency(0, amount)
-    TriggerClientEvent('vorp:TipRight', src, ('Statue delivered. You earned $%d'):format(amount), 5000)
+    local message = ('You received $%d for delivering the statue'):format(amount)
+    if VORPcore.NotifyRightTip then
+        VORPcore.NotifyRightTip(src, message, 5000) -- VORP's default top-right tip
+    else
+        TriggerClientEvent('vorp:TipRight', src, message, 5000)
+    end
     print(('[coi_art_rob] %s was paid $%d for a statue delivery'):format(GetPlayerName(src), amount))
 end)
 

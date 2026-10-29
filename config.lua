@@ -11,7 +11,22 @@ Config.Locations = {
             vector4(-242.4385, 769.7139, 118.0850, 107.1163),
         },
         sprite = -1954662204,
-        label = 'Meet Jessie'
+        label = 'Meet Jessie',
+        -- Where the statue is delivered for this location, plus the map circle shown on the statues.
+        Delivery = {
+            coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
+            radius = 4.0,                           -- size of both the map circle and the world cylinder
+            color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
+            marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
+            label = 'Statue Delivery',
+            prompt = 'Deliver Statue',
+            route = 'COLOR_YELLOW',                 -- GPS route colour while carrying
+        },
+        Blip = {
+            radius = 100.0,                         -- size of the round area on the map
+            color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
+            label = 'Find the Statue'
+        },
     },
 }
 
@@ -27,6 +42,7 @@ Config.Heist = {
         vector4(-248.3603, 780.0131, 118.3014, 0),
         -- Add more statue locations here
     },
+    BadgeText = 'Art Heist Active', -- small pill shown at the top of the screen while the heist runs
     Payout = 200, -- cash paid for each delivered statue
     PickupDistance = 2.5,
     PickupLabel = 'Pick Up Statue',
@@ -39,20 +55,6 @@ Config.Heist = {
         animDict = 'mech_pickup@camerabag@carried',
         animName = 'grip_lt_arm',
     },
-    Delivery = {
-        coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
-        radius = 4.0,                           -- size of both the map circle and the world cylinder
-        color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
-        marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
-        label = 'Statue Delivery',
-        prompt = 'Deliver Statue',
-        route = 'COLOR_YELLOW',                 -- GPS route colour while carrying
-    },
-    Blip = {
-        radius = 100.0,                         -- size of the round area on the map
-        color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
-        label = 'Find the Statue'
-    }
 }
 
 

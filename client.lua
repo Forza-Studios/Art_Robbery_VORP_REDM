@@ -21,6 +21,7 @@ local endHeistPrompt
 local heistStarted = false
 local carriedProp
 local deliveryBlip
+local activeLocation -- key of Config.Locations the running heist belongs to
 local deliveredCount = 0
 local statueBlips = {} -- prop -> blip, so a statue's map circle goes away once picked up
 local pickupGroup = GetRandomIntInRange(0, 0xffffff)
@@ -336,6 +337,10 @@ CreateThread(function()
     end
 end)
 
+local function activeDelivery()
+    return Config.Locations[activeLocation].Delivery
+end
+
 local function addAreaBlip(coords, radius, colorName, label)
     local blip = Citizen.InvokeNative(0x45F13B7E0A15C880, -1282792512, coords.x, coords.y, coords.z, radius)
     if blip and blip ~= 0 then
@@ -353,9 +358,11 @@ local function hideStatueBlips()
 end
 
 local function showStatueBlips()
+    if not activeLocation then return end
+    local activeBlipCfg = Config.Locations[activeLocation].Blip
     for prop in pairs(statuePending) do
         if DoesEntityExist(prop) and not statueBlips[prop] then
-            local blip = addAreaBlip(GetEntityCoords(prop), Config.Heist.Blip.radius, Config.Heist.Blip.color, Config.Heist.Blip.label)
+            local blip = addAreaBlip(GetEntityCoords(prop), activeBlipCfg.radius, activeBlipCfg.color, activeBlipCfg.label)
             if blip then statueBlips[prop] = blip end
         end
     end
@@ -369,7 +376,7 @@ local function hideDeliveryBlip()
 end
 
 local function showDeliveryBlip()
-    local d = Config.Heist.Delivery
+    local d = activeDelivery()
     hideDeliveryBlip()
     deliveryBlip = addAreaBlip(d.coords, d.radius, d.color, d.label)
 end
@@ -399,9 +406,9 @@ local function hidePrompt(prompt)
 end
 
 local function startDeliveryRoute()
-    local d = Config.Heist.Delivery.coords
+    local d = activeDelivery().coords
     ClearGpsMultiRoute()
-    StartGpsMultiRoute(GetHashKey(Config.Heist.Delivery.route), true, true)
+    StartGpsMultiRoute(GetHashKey(activeDelivery().route), true, true)
     AddPointToGpsMultiRoute(d.x, d.y, d.z)
     SetGpsMultiRouteRender(true)
 end
@@ -475,7 +482,7 @@ local function deliverStatue()
     hideDeliveryBlip()
     showStatueBlips()
     deliveredCount = deliveredCount + 1
-    TriggerServerEvent('coi_art_rob:server:deliverStatue')
+    TriggerServerEvent('coi_art_rob:server:deliverStatue', activeLocation)
     if deliveredCount >= #Config.Heist.StatueLocations then
         TriggerEvent('vorp:TipRight', "All statues delivered!", 5000)
     end
@@ -483,7 +490,7 @@ end
 
 CreateThread(function()
     pickupPrompt = registerPrompt(Config.Heist.PickupLabel, pickupGroup)
-    deliverPrompt = registerPrompt(Config.Heist.Delivery.prompt, deliverGroup)
+    deliverPrompt = registerPrompt('Deliver Statue', deliverGroup)
 
     while true do
         local wait = 500
@@ -495,7 +502,7 @@ CreateThread(function()
                 if IsEntityDead(playerPed) then
                     dropStatue()
                 else
-                    local d = Config.Heist.Delivery
+                    local d = activeDelivery()
                     local dest = vector3(d.coords.x, d.coords.y, d.coords.z)
                     local dist = #(playerCoords - dest)
                     hidePrompt(pickupPrompt)
@@ -559,6 +566,8 @@ RegisterNetEvent('coi_art_rob:client:startHeist')
 AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
     if heistStarted then return end
     heistStarted = true
+    activeLocation = locationName
+    SendNUIMessage({ action = 'badge', show = true, text = Config.Heist.BadgeText })
 
     if Config.Debug then
         print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
@@ -597,6 +606,7 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
     SetModelAsNoLongerNeeded(model)
     
     deliveredCount = 0
+    PromptSetText(deliverPrompt, CreateVarString(10, 'LITERAL_STRING', activeDelivery().prompt))
 
     TriggerEvent('vorp:TipRight', "The Art Heist has begun! Find the statues marked on your map.", 5000)
 end)
@@ -617,6 +627,8 @@ AddEventHandler('coi_art_rob:client:endHeist', function()
     statuePending = {}
     carriedProp = nil
     ClearGpsMultiRoute()
+    activeLocation = nil
+    SendNUIMessage({ action = 'badge', show = false })
 
     TriggerEvent('vorp:TipRight', "The Art Heist has ended.", 5000)
 end)
