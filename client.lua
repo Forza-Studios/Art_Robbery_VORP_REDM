@@ -17,19 +17,33 @@ local activeBlips = {}
 local heistProps = {}
 local heistBlips = {}
 local heistPrompt
+local endHeistPrompt
+local heistStarted = false
 local promptTargets = {} -- locationName -> label, for NPCs currently in prompt range
 local promptGroup = GetRandomIntInRange(0, 0xffffff)
 
-local function RegisterHeistPrompt()
+local function RegisterHeistPrompts()
+    -- Start Prompt
     local str = CreateVarString(10, 'LITERAL_STRING', Config.Prompt.label)
     heistPrompt = PromptRegisterBegin()
     PromptSetControlAction(heistPrompt, Config.Prompt.control)
     PromptSetText(heistPrompt, str)
     PromptSetStandardMode(heistPrompt, true)
-    PromptSetGroup(heistPrompt, promptGroup) -- must be set before PromptRegisterEnd
+    PromptSetGroup(heistPrompt, promptGroup)
     PromptRegisterEnd(heistPrompt)
     PromptSetEnabled(heistPrompt, false)
     PromptSetVisible(heistPrompt, false)
+
+    -- End Prompt
+    local strEnd = CreateVarString(10, 'LITERAL_STRING', Config.EndPrompt.label)
+    endHeistPrompt = PromptRegisterBegin()
+    PromptSetControlAction(endHeistPrompt, Config.EndPrompt.control)
+    PromptSetText(endHeistPrompt, strEnd)
+    PromptSetStandardMode(endHeistPrompt, true)
+    PromptSetGroup(endHeistPrompt, promptGroup)
+    PromptRegisterEnd(endHeistPrompt)
+    PromptSetEnabled(endHeistPrompt, false)
+    PromptSetVisible(endHeistPrompt, false)
 end
 
 local function say(ped, speech)
@@ -256,17 +270,26 @@ local function runPedLogic(locationName, data)
 end
 
 CreateThread(function()
-    RegisterHeistPrompt()
+    RegisterHeistPrompts()
     while true do
         local locationName, label = next(promptTargets)
         if locationName then
-            PromptSetEnabled(heistPrompt, true)
-            PromptSetVisible(heistPrompt, true)
-            PromptSetActiveGroupThisFrame(promptGroup, CreateVarString(10, 'LITERAL_STRING', label))
-            if PromptHasStandardModeCompleted(heistPrompt, 0) then
-                TriggerEvent('coi_art_rob:client:startHeist', locationName)
-                if Config.Debug then
-                    print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
+            local activePrompt = heistStarted and endHeistPrompt or heistPrompt
+            local inactivePrompt = heistStarted and heistPrompt or endHeistPrompt
+            local currentLabel = heistStarted and Config.EndPrompt.label or label
+
+            PromptSetEnabled(inactivePrompt, false)
+            PromptSetVisible(inactivePrompt, false)
+
+            PromptSetEnabled(activePrompt, true)
+            PromptSetVisible(activePrompt, true)
+            PromptSetActiveGroupThisFrame(promptGroup, CreateVarString(10, 'LITERAL_STRING', currentLabel))
+
+            if PromptHasStandardModeCompleted(activePrompt, 0) then
+                if heistStarted then
+                    TriggerEvent('coi_art_rob:client:endHeist')
+                else
+                    TriggerEvent('coi_art_rob:client:startHeist', locationName)
                 end
                 Wait(1000) -- Prevent double trigger
             end
@@ -274,6 +297,8 @@ CreateThread(function()
         else
             PromptSetEnabled(heistPrompt, false)
             PromptSetVisible(heistPrompt, false)
+            PromptSetEnabled(endHeistPrompt, false)
+            PromptSetVisible(endHeistPrompt, false)
             Wait(250)
         end
     end
@@ -305,6 +330,9 @@ end)
 
 RegisterNetEvent('coi_art_rob:client:startHeist')
 AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
+    if heistStarted then return end
+    heistStarted = true
+
     if Config.Debug then
         print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
     end
@@ -327,12 +355,10 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
         FreezeEntityPosition(prop, true)
         table.insert(heistProps, prop)
 
-        -- Create Green Blip
-        local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, coords.x, coords.y, coords.z, Citizen.ResultAsInteger())
+        -- Large round area blip (no sprite), tinted with a blip colour modifier
+        local blip = Citizen.InvokeNative(0x45F13B7E0A15C880, -1282792512, coords.x, coords.y, coords.z, Config.Heist.Blip.radius)
         if blip and blip ~= 0 then
-            SetBlipSprite(blip, Config.Heist.Blip.sprite, true)
-            SetBlipScale(blip, Config.Heist.Blip.scale)
-            Citizen.InvokeNative(0x662D364ABF7265AC, blip, Config.Heist.Blip.color) -- SET_BLIP_COLOUR
+            Citizen.InvokeNative(0x662D364ABF7265AC, blip, GetHashKey(Config.Heist.Blip.color)) -- BLIP_ADD_MODIFIER
             local str = CreateVarString(10, 'LITERAL_STRING', Config.Heist.Blip.label)
             Citizen.InvokeNative(0x9CB1A1623062F402, blip, str) -- SET_BLIP_NAME
             table.insert(heistBlips, blip)
@@ -342,6 +368,23 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
     SetModelAsNoLongerNeeded(model)
     
     TriggerEvent('vorp:TipRight', "The Art Heist has begun! Find the statues marked on your map.", 5000)
+end)
+
+RegisterNetEvent('coi_art_rob:client:endHeist')
+AddEventHandler('coi_art_rob:client:endHeist', function()
+    if not heistStarted then return end
+    heistStarted = false
+
+    if Config.Debug then
+        print('[coi_art_rob] Art Heist ended')
+    end
+
+    for _, prop in ipairs(heistProps) do DeleteObject(prop) end
+    for _, blip in ipairs(heistBlips) do RemoveBlip(blip) end
+    heistProps = {}
+    heistBlips = {}
+
+    TriggerEvent('vorp:TipRight', "The Art Heist has ended.", 5000)
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
@@ -365,6 +408,10 @@ AddEventHandler('onResourceStop', function(resourceName)
         if blip and type(blip) == "number" and blip ~= 0 then
             RemoveBlip(blip)
         end
+    end
+    
+    if endHeistPrompt then
+        PromptDelete(endHeistPrompt)
     end
     
     if heistPrompt then

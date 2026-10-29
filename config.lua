@@ -21,17 +21,22 @@ Config.Locations = {
 
 
 Config.Heist = {
-    StatueModel = `p_cs_statue_01x`, -- Example statue model
+    StatueModel = `p_cs_statue01x`, -- Example statue model
     StatueLocations = {
         vector4(-231.0029, 842.0952, 123.2734, 171.2677),
         -- Add more statue locations here
     },
     Blip = {
-        sprite = 1370219805, -- Large dot sprite
-        color = 25,          -- Green color in RedM
-        scale = 0.2,
-        label = 'Stolen Statue'
+        radius = 100.0,                         -- size of the round area on the map
+        color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
+        label = 'Find the Statue'
     }
+}
+
+Config.EndPrompt = {
+    label = 'End Art Heist',
+    control = 0xC7B5340A, -- INPUT_FRONTEND_ACCEPT
+    distance = 4.0
 }
 
 
