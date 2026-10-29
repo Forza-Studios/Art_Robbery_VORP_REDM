@@ -1,3 +1,6 @@
+--[[
+    Previous carryable-statue logic (disabled).
+
 local statue = nil
 local carried = nil
 local pickupPrompt = nil
@@ -197,4 +200,136 @@ AddEventHandler("onResourceStop", function(resource)
     if carried and DoesEntityExist(carried) then
         DeleteEntity(carried)
     end
+end)
+]]
+
+local npc = nil
+
+local SPAWN_DISTANCE = 100.0
+local MAX_DRIFT = 5.0
+
+local function LoadModel(model)
+    if not HasModelLoaded(model) then
+        RequestModel(model, false)
+        while not HasModelLoaded(model) do
+            Wait(0)
+        end
+    end
+end
+
+local function RemoveNpc()
+    if npc and DoesEntityExist(npc) then
+        DeleteEntity(npc)
+    end
+    npc = nil
+end
+
+local function SpawnNpc()
+    if npc and DoesEntityExist(npc) then
+        return
+    end
+
+    local cfg = Config.Npc
+    local model = GetHashKey(cfg.model)
+    local z = cfg.coords.z + (cfg.zOffset or 0.0)
+
+    LoadModel(model)
+
+    local ped = CreatePed(model, cfg.coords.x, cfg.coords.y, z, cfg.coords.h, false, false, false, false)
+
+    if not ped or ped == 0 then
+        print("[coi_art_rob] CreatePed failed.")
+        return
+    end
+
+    npc = ped
+    repeat Wait(0) until DoesEntityExist(npc)
+
+    Citizen.InvokeNative(0x283978A15512B2FE, npc, true) -- SetRandomOutfitVariation
+    while not Citizen.InvokeNative(0xA0BC8FAED8CFEB3C, npc) do Wait(0) end -- IsPedReadyToRender
+
+    SetEntityAsMissionEntity(npc, true, true)
+    SetEntityVisible(npc, true)
+    SetBlockingOfNonTemporaryEvents(npc, true)
+    SetPedKeepTask(npc, true)
+    SetPedCanBeTargetted(npc, false)
+    SetEntityInvincible(npc, true)
+    SetPedFleeAttributes(npc, 0, false)
+
+    TaskStartScenarioInPlaceHash(npc, GetHashKey(cfg.scenario), 0, true, 0, 0, false)
+
+    SetTimeout(1000, function()
+        if npc and DoesEntityExist(npc) then
+            FreezeEntityPosition(npc, true)
+        end
+    end)
+
+    local coords = GetEntityCoords(npc)
+    print(("[coi_art_rob] NPC spawned at %.2f, %.2f, %.2f"):format(coords.x, coords.y, coords.z))
+end
+
+CreateThread(function()
+    local cfg = Config.Npc
+    local target = vector3(cfg.coords.x, cfg.coords.y, cfg.coords.z)
+
+    while true do
+        Wait(1000)
+
+        local playerCoords = GetEntityCoords(PlayerPedId())
+
+        if #(playerCoords - target) <= SPAWN_DISTANCE then
+            if not npc or not DoesEntityExist(npc) then
+                SpawnNpc()
+            elseif #(GetEntityCoords(npc) - target) > MAX_DRIFT then
+                RemoveNpc()
+                SpawnNpc()
+            end
+        elseif npc and DoesEntityExist(npc) then
+            RemoveNpc()
+        end
+    end
+end)
+
+RegisterCommand("npcfind", function()
+    local cfg = Config.Npc
+
+    print(("[coi_art_rob] Config position: %.2f, %.2f, %.2f"):format(cfg.coords.x, cfg.coords.y, cfg.coords.z))
+
+    if not npc or not DoesEntityExist(npc) then
+        print("[coi_art_rob] NPC entity does not exist right now.")
+        return
+    end
+
+    local coords = GetEntityCoords(npc)
+    local playerCoords = GetEntityCoords(PlayerPedId())
+
+    print(("[coi_art_rob] NPC position: %.2f, %.2f, %.2f | distance: %.1f"):format(
+        coords.x,
+        coords.y,
+        coords.z,
+        #(playerCoords - coords)
+    ))
+
+    local heading = GetEntityHeading(npc)
+    local rad = math.rad(heading)
+
+    SetEntityCoords(
+        PlayerPedId(),
+        coords.x + math.sin(rad) * 1.5,
+        coords.y + math.cos(rad) * 1.5,
+        coords.z + 0.2,
+        false,
+        false,
+        false,
+        false
+    )
+    SetEntityHeading(PlayerPedId(), heading + 180.0)
+end, false)
+
+AddEventHandler("onResourceStop", function(resource)
+    if resource ~= GetCurrentResourceName() then
+        return
+    end
+
+    RemoveNpc()
 end)
