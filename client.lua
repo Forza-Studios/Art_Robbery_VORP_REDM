@@ -73,7 +73,7 @@ local function spawnPed()
         Wait(0)
     end
 
-    local ped = CreatePed(PED_MODEL, PED_COORDS.x, PED_COORDS.y, PED_COORDS.z, PED_COORDS.w, false, false, false, false)
+    local ped = CreatePed(PED_MODEL, Config.PedCoords.x, Config.PedCoords.y, Config.PedCoords.z, Config.PedCoords.w, false, false, false, false)
 
     -- RedM peds are invisible until an outfit is applied
     SetRandomOutfitVariation(ped, true)
@@ -103,7 +103,7 @@ end
 
 local function walkTo(ped, coords, heading)
     ClearPedTasks(ped)
-    TaskGoStraightToCoord(ped, coords.x, coords.y, coords.z, 1.0, 10000, heading or 0.0, 0.5)
+    TaskGoStraightToCoord(ped, coords.x, coords.y, coords.z, 1.0, -1, heading or 0.0, 0.1)
 end
 
 CreateThread(function()
@@ -128,9 +128,23 @@ CreateThread(function()
             local now = GetGameTimer()
             local wait = 500
             local playerPed = PlayerPedId()
-            local dist = #(GetEntityCoords(playerPed) - GetEntityCoords(ped))
+            local currentCoords = GetEntityCoords(ped)
+            
+            -- Use config values directly so changes take effect if the script is reloaded or if the user expects dynamic updates
+            local postCoords = vector3(Config.PedCoords.x, Config.PedCoords.y, Config.PedCoords.z)
+            
+            local dist = #(GetEntityCoords(playerPed) - currentCoords)
             local aimed = dist < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
             local shot = dist < 25.0 and IsPedShooting(playerPed)
+
+            -- Always check if the NPC has been moved/pushed away from its post
+            -- We ignore this if the NPC is currently wandering, fleeing, or reacting to a gun.
+            if state ~= 'flee' and state ~= 'handsup' and state ~= 'wander' and state ~= 'returning' then
+                if #(currentCoords - postCoords) > Config.ReturnThreshold then
+                    state = 'returning'
+                    walkTo(ped, postCoords, Config.PedCoords.w)
+                end
+            end
 
             -- Keep the NPC chatting even when no player is nearby.
             if now - lastChatter >= CHATTER_INTERVAL and state ~= 'handsup' and state ~= 'flee' then
@@ -154,11 +168,11 @@ CreateThread(function()
                 wait = 250
                 if now > stateUntil and not aimed then
                     state = 'returning'
-                    walkTo(ped, POST, PED_COORDS.w)
+                    walkTo(ped, postCoords, Config.PedCoords.w)
                 end
             elseif state == 'returning' then
                 wait = 250
-                if #(GetEntityCoords(ped) - POST) < 1.0 then
+                if #(GetEntityCoords(ped) - postCoords) < 1.0 then
                     state = 'idle'
                     startIdle(ped)
                 end
@@ -175,7 +189,7 @@ CreateThread(function()
                     say(ped, 'GENERIC_GOODBYE')
                     TaskClearLookAt(ped)
                     state = 'returning'
-                    walkTo(ped, POST, PED_COORDS.w)
+                    walkTo(ped, postCoords, Config.PedCoords.w)
                 end
             else
                 -- idle life: glance at passers-by, change activity now and then
@@ -186,7 +200,7 @@ CreateThread(function()
                 if state == 'wander' and now > stateUntil then
                     state = 'returning'
                     wanderPoint = nil
-                    walkTo(ped, POST, PED_COORDS.w)
+                    walkTo(ped, postCoords, Config.PedCoords.w)
                 elseif state == 'wander' and wanderPoint and #(GetEntityCoords(ped) - wanderPoint) < 1.0 then
                     -- The random point was reached: play an idle animation there
                     -- until it is time to return to the original spawn point.
@@ -197,7 +211,7 @@ CreateThread(function()
                     if math.random() < Config.WanderChance then
                         local a = math.random() * 2.0 * math.pi
                         local r = math.random(100, math.floor(WANDER_RADIUS * 100)) / 100
-                        wanderPoint = vector3(POST.x + math.cos(a) * r, POST.y + math.sin(a) * r, POST.z)
+                        wanderPoint = vector3(postCoords.x + math.cos(a) * r, postCoords.y + math.sin(a) * r, postCoords.z)
                         state, stateUntil = 'wander', now + Config.WanderDuration
                         walkTo(ped, wanderPoint)
                     else

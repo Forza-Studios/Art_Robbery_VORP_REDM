@@ -3,6 +3,7 @@ Config = {}
 Config.PedModel = `a_f_m_valtownfolk_01`
 Config.PedCoords = vector4(-238.9870, 770.3414, 117.0950, 108.0667)
 Config.Invincible = true
+Config.ReturnThreshold = 1.5 -- Distance from POST before NPC decides to walk back if not wandering
 
 -- Native speech lines. RedM chooses the correct voice for the ped model.
 Config.Debug = true
