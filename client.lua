@@ -103,7 +103,8 @@ end
 
 local function walkTo(ped, coords, heading)
     ClearPedTasks(ped)
-    TaskGoStraightToCoord(ped, coords.x, coords.y, coords.z, 1.0, -1, heading or 0.0, 0.1)
+    -- TaskFollowNavMeshToCoord enables proper pathfinding around obstacles like walls
+    TaskFollowNavMeshToCoord(ped, coords.x, coords.y, coords.z, 1.0, -1, 0.5, true, heading or 0.0)
 end
 
 CreateThread(function()
