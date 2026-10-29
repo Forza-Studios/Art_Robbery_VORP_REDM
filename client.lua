@@ -22,6 +22,10 @@ local function RegisterHeistPrompt()
     PromptSetControlAction(heistPrompt, Config.Prompt.control)
     PromptSetText(heistPrompt, str)
     PromptSetStandardMode(heistPrompt, 1) -- Press mode
+    
+    -- IMPORTANT: Allow prompt to trigger even if not looking at the NPC
+    Citizen.InvokeNative(0x560E76D5E2E8E3CB, heistPrompt, true) -- _PROMPT_SET_ATTRIBUTE (Attribute 1: Can be triggered without targeting)
+    
     PromptRegisterEnd(heistPrompt)
     PromptSetEnabled(heistPrompt, false)
     PromptSetVisible(heistPrompt, false)
@@ -78,6 +82,14 @@ local function spawnPed(model, coords)
     SetBlockingOfNonTemporaryEvents(ped, true)
     SetPedCanRagdoll(ped, true)
     SetEntityInvincible(ped, Config.Invincible)
+    
+    -- Allow players to interact with the NPC without having to aim/attack first
+    Citizen.InvokeNative(0x283978A15512B2FE, ped, true) -- SET_RANDOM_OUTFIT_VARIATION (already called above but ensuring context)
+    SetEntityAsMissionEntity(ped, true, true)
+    
+    -- Crucial: Make the ped interactive for HUD prompts
+    Citizen.InvokeNative(0x06843DA7060A02BA, ped, true) -- _SET_PED_CAN_BE_INTERACTED_WITH
+    Citizen.InvokeNative(0x50C37353987F1793, ped, true) -- _SET_PED_CAN_BE_TARGETED_BY_PLAYER
 
     SetModelAsNoLongerNeeded(model)
     return ped
@@ -136,14 +148,16 @@ local function runPedLogic(locationName, data)
                 -- Prompt handling
                 if distToPlayer < Config.Prompt.distance and state ~= 'handsup' and state ~= 'flee' then
                     wait = 0 -- Faster loop when close for responsive prompt
-                    local group = PromptGetGroupIdForTargetEntity(ped)
                     
                     PromptSetEnabled(heistPrompt, true)
                     PromptSetVisible(heistPrompt, true)
-                    PromptSetGroup(heistPrompt, group)
                     
-                    -- RedM requires the group to be active this frame to show the prompt
-                    Citizen.InvokeNative(0xC5FBA0830A658144, group, CreateVarString(10, 'LITERAL_STRING', data.label or locationName))
+                    -- Force the prompt to show up in a global group if entity targeting is failing
+                    local group = PromptGetGroupIdForTargetEntity(ped)
+                    if group and group ~= 0 then
+                        PromptSetGroup(heistPrompt, group)
+                        Citizen.InvokeNative(0xC5FBA0830A658144, group, CreateVarString(10, 'LITERAL_STRING', data.label or locationName))
+                    end
 
                     if PromptHasStandardModeCompleted(heistPrompt) then
                         TriggerEvent('coi_art_rob:client:startHeist', locationName)
@@ -151,6 +165,12 @@ local function runPedLogic(locationName, data)
                             print(('[coi_art_rob] Art Heist started at %s'):format(locationName))
                         end
                         Wait(1000) -- Prevent double trigger
+                    end
+                else
+                    -- Hide prompt when out of range or in wrong state
+                    if heistPrompt then
+                        PromptSetEnabled(heistPrompt, false)
+                        PromptSetVisible(heistPrompt, false)
                     end
                 end
 
