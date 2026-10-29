@@ -24,8 +24,27 @@ Config.Heist = {
     StatueModel = `p_gen_statue02b`, -- Example statue model
     StatueSize = 5, -- Size of the statue prop
     StatueLocations = {
-        vector4(-248.3603, 780.0131, 118.3014, 0),
-        vector4(-244.5420, 779.2379, 118.1971, 322.8801),
+
+
+
+
+
+
+
+        
+        -- Valentine statue locations
+        vector4(-303.8881, 779.2008, 118.8670, 0), 
+        vector4(-230.7928, 843.8995, 123.4109, 0), 
+        vector4(-173.4909, 637.1891, 114.2386, 0), 
+        vector4(-348.0037, 708.6829, 116.9648, 0), 
+        vector4(-383.6716, 918.5159, 118.6673, 0),
+
+
+
+
+
+
+
         -- Add more statue locations here
     },
     -- Delivery points: settings are shared, so to add a point just add its coords to `locations`.
@@ -38,11 +57,37 @@ Config.Heist = {
         label = 'Statue Delivery',
         prompt = 'Deliver Statue',
         locations = {
-            vector4(-268.7309, 776.7904, 118.9298, 99.2943),
-            vector4(-251.9256, 765.0274, 117.2738, 206.6767),
+
+
+
+
+
+
+
+            -- Valentine delivery locations
+            vector4(-259.3093, 968.4132, 137.2060, 358.9028),
+            vector4(-397.3423, 669.9913, 115.5816, 308.1457),
+            vector4(-162.9496, 551.2115, 114.8471, 29.1704),
+            vector4(-421.5862, 503.7643, 98.3649, 291.3235),
+            vector4(-57.8521, 1252.5878, 172.2986, 356.7714),
+
+
+
+
+
+
+
+
+
             -- Add more delivery locations here
         },
     },
+
+
+
+
+
+
     -- Map circle shown on each statue before it is picked up.
     Blip = {
         radius = 200.0,                         -- size of the round area on the map
