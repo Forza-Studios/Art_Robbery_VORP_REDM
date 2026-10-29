@@ -20,7 +20,7 @@ local heistPrompt
 local endHeistPrompt
 local heistStarted = false
 local carriedProp
-local deliveryBlip
+local deliveryBlips = {}
 local activeLocation -- key of Config.Locations the running heist belongs to
 local deliveredCount = 0
 local statueBlips = {} -- prop -> blip, so a statue's map circle goes away once picked up
@@ -337,8 +337,8 @@ CreateThread(function()
     end
 end)
 
-local function activeDelivery()
-    return Config.Locations[activeLocation].Delivery
+local function activeDeliveries()
+    return Config.Heist.Delivery
 end
 
 local function addAreaBlip(coords, radius, colorName, label)
@@ -358,8 +358,7 @@ local function hideStatueBlips()
 end
 
 local function showStatueBlips()
-    if not activeLocation then return end
-    local activeBlipCfg = Config.Locations[activeLocation].Blip
+    local activeBlipCfg = Config.Heist.Blip
     for prop in pairs(statuePending) do
         if DoesEntityExist(prop) and not statueBlips[prop] then
             local blip = addAreaBlip(GetEntityCoords(prop), activeBlipCfg.radius, activeBlipCfg.color, activeBlipCfg.label)
@@ -369,16 +368,18 @@ local function showStatueBlips()
 end
 
 local function hideDeliveryBlip()
-    if deliveryBlip then
-        RemoveBlip(deliveryBlip)
-        deliveryBlip = nil
+    for i, blip in pairs(deliveryBlips) do
+        RemoveBlip(blip)
+        deliveryBlips[i] = nil
     end
 end
 
 local function showDeliveryBlip()
-    local d = activeDelivery()
     hideDeliveryBlip()
-    deliveryBlip = addAreaBlip(d.coords, d.radius, d.color, d.label)
+    for i, d in ipairs(activeDeliveries()) do
+        local blip = addAreaBlip(d.coords, d.blipRadius or d.radius, d.color, d.label)
+        if blip then deliveryBlips[i] = blip end
+    end
 end
 
 local function registerPrompt(text, group)
@@ -403,14 +404,6 @@ end
 local function hidePrompt(prompt)
     PromptSetEnabled(prompt, false)
     PromptSetVisible(prompt, false)
-end
-
-local function startDeliveryRoute()
-    local d = activeDelivery().coords
-    ClearGpsMultiRoute()
-    StartGpsMultiRoute(GetHashKey(activeDelivery().route), true, true)
-    AddPointToGpsMultiRoute(d.x, d.y, d.z)
-    SetGpsMultiRouteRender(true)
 end
 
 local function playCarryAnim(ped)
@@ -450,7 +443,6 @@ local function pickUpStatue(prop)
     hideStatueBlips()
     showDeliveryBlip()
 
-    startDeliveryRoute()
     TriggerEvent('vorp:TipRight', "Carry the statue to the delivery point.", 5000)
 end
 
@@ -458,7 +450,6 @@ local function dropStatue()
     local prop = carriedProp
     carriedProp = nil
     stopCarryAnim(PlayerPedId())
-    ClearGpsMultiRoute()
     if prop and DoesEntityExist(prop) then
         DetachEntity(prop, true, true)
         SetEntityCollision(prop, true, true)
@@ -469,11 +460,10 @@ local function dropStatue()
     showStatueBlips()
 end
 
-local function deliverStatue()
+local function deliverStatue(deliveryIndex)
     local prop = carriedProp
     carriedProp = nil
     stopCarryAnim(PlayerPedId())
-    ClearGpsMultiRoute()
     if prop and DoesEntityExist(prop) then
         DetachEntity(prop, true, true)
         DeleteObject(prop)
@@ -482,7 +472,7 @@ local function deliverStatue()
     hideDeliveryBlip()
     showStatueBlips()
     deliveredCount = deliveredCount + 1
-    TriggerServerEvent('coi_art_rob:server:deliverStatue', activeLocation)
+    TriggerServerEvent('coi_art_rob:server:deliverStatue', activeLocation, deliveryIndex)
     if deliveredCount >= #Config.Heist.StatueLocations then
         TriggerEvent('vorp:TipRight', "All statues delivered!", 5000)
     end
@@ -502,9 +492,6 @@ CreateThread(function()
                 if IsEntityDead(playerPed) then
                     dropStatue()
                 else
-                    local d = activeDelivery()
-                    local dest = vector3(d.coords.x, d.coords.y, d.coords.z)
-                    local dist = #(playerCoords - dest)
                     hidePrompt(pickupPrompt)
 
                     local carry = Config.Heist.Carry
@@ -512,20 +499,30 @@ CreateThread(function()
                         playCarryAnim(playerPed)
                     end
 
-                    if dist < 80.0 then
-                        wait = 0
-                        -- world cylinder matching the map circle (_DRAW_MARKER, type 0x94FDAE17 = cylinder)
-                        Citizen.InvokeNative(0x2A32FAA57B937173, 0x94FDAE17, dest.x, dest.y, dest.z - 1.0,
-                            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                            d.radius * 2.0, d.radius * 2.0, 3.0,
-                            d.marker.r, d.marker.g, d.marker.b, d.marker.a,
-                            false, false, 2, false, nil, nil, false)
+                    local insideIndex, insideDelivery
+                    for index, d in ipairs(activeDeliveries()) do
+                        local dest = vector3(d.coords.x, d.coords.y, d.coords.z)
+                        local dist = #(playerCoords - dest)
+
+                        if dist < 80.0 then
+                            wait = 0
+                            -- world cylinder matching the map circle (_DRAW_MARKER, type 0x94FDAE17 = cylinder)
+                            Citizen.InvokeNative(0x2A32FAA57B937173, 0x94FDAE17, dest.x, dest.y, dest.z - 1.0,
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                d.radius * 2.0, d.radius * 2.0, 3.0,
+                                d.marker.r, d.marker.g, d.marker.b, d.marker.a,
+                                false, false, 2, false, nil, nil, false)
+                        end
+
+                        if dist < d.radius then
+                            insideIndex, insideDelivery = index, d
+                        end
                     end
 
-                    if dist < d.radius then
+                    if insideDelivery then
                         wait = 0
-                        if showPrompt(deliverPrompt, deliverGroup, d.label) then
-                            deliverStatue()
+                        if showPrompt(deliverPrompt, deliverGroup, insideDelivery.label) then
+                            deliverStatue(insideIndex)
                             Wait(1000)
                         end
                     else
@@ -606,7 +603,7 @@ AddEventHandler('coi_art_rob:client:startHeist', function(locationName)
     SetModelAsNoLongerNeeded(model)
     
     deliveredCount = 0
-    PromptSetText(deliverPrompt, CreateVarString(10, 'LITERAL_STRING', activeDelivery().prompt))
+    PromptSetText(deliverPrompt, CreateVarString(10, 'LITERAL_STRING', activeDeliveries()[1].prompt))
 
     TriggerEvent('vorp:TipRight', "The Art Heist has begun! Find the statues marked on your map.", 5000)
 end)
@@ -626,7 +623,6 @@ AddEventHandler('coi_art_rob:client:endHeist', function()
     heistProps = {}
     statuePending = {}
     carriedProp = nil
-    ClearGpsMultiRoute()
     activeLocation = nil
     SendNUIMessage({ action = 'badge', show = false })
 
@@ -653,7 +649,6 @@ AddEventHandler('onResourceStop', function(resourceName)
     hideStatueBlips()
     hideDeliveryBlip()
 
-    ClearGpsMultiRoute()
     if pickupPrompt then PromptDelete(pickupPrompt) end
     if deliverPrompt then PromptDelete(deliverPrompt) end
 

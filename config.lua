@@ -12,21 +12,6 @@ Config.Locations = {
         },
         sprite = -1954662204,
         label = 'Meet Jessie',
-        -- Where the statue is delivered for this location, plus the map circle shown on the statues.
-        Delivery = {
-            coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
-            radius = 4.0,                           -- size of both the map circle and the world cylinder
-            color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
-            marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
-            label = 'Statue Delivery',
-            prompt = 'Deliver Statue',
-            route = 'COLOR_YELLOW',                 -- GPS route colour while carrying
-        },
-        Blip = {
-            radius = 100.0,                         -- size of the round area on the map
-            color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
-            label = 'Find the Statue'
-        },
     },
 }
 
@@ -41,6 +26,35 @@ Config.Heist = {
     StatueLocations = {
         vector4(-248.3603, 780.0131, 118.3014, 0),
         -- Add more statue locations here
+    },
+    -- Delivery points (add as many as you like, same as StatueLocations).
+    -- While carrying, every point is shown and the statue can be delivered at any of them.
+    Delivery = {
+        {
+            coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
+            radius = 4.0,                           -- size of the world cylinder and the delivery trigger area
+            blipRadius = 100.0,                     -- size of the round area on the map (same idea as Blip.radius)
+            color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
+            marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
+            label = 'Statue Delivery',
+            prompt = 'Deliver Statue',
+        },
+        {
+            coords = vector4(-251.9256, 765.0274, 117.2738, 206.6767),
+            radius = 4.0,
+            blipRadius = 100.0,
+            color = 'BLIP_MODIFIER_MP_COLOR_32',
+            marker = { r = 255, g = 200, b = 0, a = 120 },
+            label = 'Statue Delivery',
+            prompt = 'Deliver Statue',
+        },
+        -- { coords = vector4(x, y, z, h), radius = 4.0, blipRadius = 100.0, color = '...', marker = {...}, label = '...', prompt = '...' },
+    },
+    -- Map circle shown on each statue before it is picked up.
+    Blip = {
+        radius = 200.0,                         -- size of the round area on the map
+        color = 'BLIP_MODIFIER_MP_COLOR_2',     -- blip colour modifier name; try MP_COLOR_1..32 to pick another tint
+        label = 'Find the Statue'
     },
     BadgeText = 'Art Heist Active', -- small pill shown at the top of the screen while the heist runs
     Payout = 200, -- cash paid for each delivered statue
