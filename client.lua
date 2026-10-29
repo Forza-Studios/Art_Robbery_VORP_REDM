@@ -1,32 +1,41 @@
--- cs_valprostitute_02 NPC Spawner
--- Spawns the NPC at the specified coordinates on resource start.
-
-local NPC = { model = 'cs_valprostitute_02', x = -238.9870, y = 770.3414, z = 117.0950, yaw = 108.0667 }
-
-local function SpawnPed(model, x, y, z, yaw)
-    local ped = CreatePed(model, x, y, z, yaw, false, false, false, false)
-    repeat Wait(10) until DoesEntityExist(ped)
-    return ped
-end
+local PED_MODEL = `cs_valprostitute_02`
+local PED_COORDS = vector4(-238.9870, 770.3414, 117.0950, 108.0667)
 
 CreateThread(function()
-    print('[' .. GetCurrentResourceName() .. '] Requesting NPC model: ' .. NPC.model)
-
-    RequestModel(NPC.model)
-    while not HasModelLoaded(NPC.model) do
-        Wait(100)
+    if not IsModelValid(PED_MODEL) then
+        print('^1[coi_art_rob] invalid ped model^7')
+        return
     end
 
-    local ped = SpawnPed(NPC.model, NPC.x, NPC.y, NPC.z, NPC.yaw)
+    RequestModel(PED_MODEL)
 
+    while not HasModelLoaded(PED_MODEL) do
+        Wait(0)
+    end
+
+    local ped = CreatePed(
+        PED_MODEL,
+        PED_COORDS.x,
+        PED_COORDS.y,
+        PED_COORDS.z,
+        PED_COORDS.w,
+        false,
+        false,
+        false,
+        false
+    )
+
+    -- RedM peds are invisible until an outfit is applied
+    SetRandomOutfitVariation(ped, true)
     SetEntityAsMissionEntity(ped, true, true)
-    SetEntityVisible(ped, true)
-    SetEntityInvincible(ped, true)
-    SetEntityCanBeDamaged(ped, false)
-    FreezeEntityPosition(ped, true)
-    SetBlockingOfNonTemporaryEvents(ped, true)
-    SetPedCanRagdoll(ped, false)
 
-    print('[' .. GetCurrentResourceName() .. '] NPC spawned at (' .. string.format('%.2f, %.2f, %.2f') , NPC.x, NPC.y, NPC.z) .. ')')
-    SetModelAsNoLongerNeeded(NPC.model)
+    -- shopkeeper behaviour: stays put, ignores threats, can't be hurt
+    SetEntityInvincible(ped, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    SetPedFleeAttributes(ped, 0, false)
+    SetPedCanRagdoll(ped, false)
+    FreezeEntityPosition(ped, true)
+    TaskStartScenarioInPlace(ped, GetHashKey('WORLD_HUMAN_STAND_WAITING'), -1, true, false, false, false)
+
+    SetModelAsNoLongerNeeded(PED_MODEL)
 end)
