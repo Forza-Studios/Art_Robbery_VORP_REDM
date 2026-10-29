@@ -92,18 +92,19 @@ end
 local function runPedLogic(locationName, data)
     CreateThread(function()
         local model = data.model
-        local coords = data.coords
-        local post = vector3(coords.x, coords.y, coords.z)
+        local path = data.path
+        local spawnCoords = path[1]
 
         while true do
-            local ped = spawnPed(model, coords)
+            local ped = spawnPed(model, spawnCoords)
             activePeds[locationName] = ped
 
-            local state = 'idle'        -- idle | wander | talk | handsup | flee | returning
+            local state = 'idle'        -- idle | wander | talk | handsup | flee | returning | patrol
             local stateUntil = 0
             local nextIdleChange = GetGameTimer() + math.random(Config.WanderIntervalMin, Config.WanderIntervalMax)
             local lastChatter = 0
             local wanderPoint
+            local currentPathIndex = 1
 
             startIdle(ped)
 
@@ -113,17 +114,12 @@ local function runPedLogic(locationName, data)
                 local playerPed = PlayerPedId()
                 local currentCoords = GetEntityCoords(ped)
                 
-                local dist = #(GetEntityCoords(playerPed) - currentCoords)
-                local aimed = dist < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
-                local shot = dist < 25.0 and IsPedShooting(playerPed)
+                local targetNode = path[currentPathIndex]
+                local targetPos = vector3(targetNode.x, targetNode.y, targetNode.z)
 
-                -- Always check if the NPC has been moved/pushed away from its post
-                if state ~= 'flee' and state ~= 'handsup' and state ~= 'wander' and state ~= 'returning' then
-                    if #(currentCoords - post) > Config.ReturnThreshold then
-                        state = 'returning'
-                        walkTo(ped, post, coords.w)
-                    end
-                end
+                local distToPlayer = #(GetEntityCoords(playerPed) - currentCoords)
+                local aimed = distToPlayer < 20.0 and IsPlayerFreeAimingAtEntity(PlayerId(), ped)
+                local shot = distToPlayer < 25.0 and IsPedShooting(playerPed)
 
                 -- Keep the NPC chatting even when no player is nearby.
                 if now - lastChatter >= CHATTER_INTERVAL and state ~= 'handsup' and state ~= 'flee' then
@@ -145,15 +141,16 @@ local function runPedLogic(locationName, data)
                     wait = 250
                     if now > stateUntil and not aimed then
                         state = 'returning'
-                        walkTo(ped, post, coords.w)
+                        walkTo(ped, targetPos, targetNode.w)
                     end
                 elseif state == 'returning' then
                     wait = 250
-                    if #(GetEntityCoords(ped) - post) < 1.0 then
+                    if #(currentCoords - targetPos) < 1.0 then
                         state = 'idle'
+                        stateUntil = now + math.random(Config.PathNodeWaitMin, Config.PathNodeWaitMax)
                         startIdle(ped)
                     end
-                elseif dist < TALK_DISTANCE then
+                elseif distToPlayer < TALK_DISTANCE then
                     wait = 100
                     if state ~= 'talk' then
                         state = 'talk'
@@ -162,33 +159,54 @@ local function runPedLogic(locationName, data)
                         TaskLookAtEntity(ped, playerPed, -1, 2048, 3, 0)
                     end
                 elseif state == 'talk' then
-                    if dist > FORGET_DISTANCE then
+                    if distToPlayer > FORGET_DISTANCE then
                         say(ped, 'GENERIC_GOODBYE')
                         TaskClearLookAt(ped)
                         state = 'returning'
-                        walkTo(ped, post, coords.w)
+                        walkTo(ped, targetPos, targetNode.w)
                     end
                 else
-                    if dist < NOTICE_DISTANCE then
+                    if distToPlayer < NOTICE_DISTANCE then
                         TaskLookAtEntity(ped, playerPed, 3000, 2048, 3, 0)
                     end
 
                     if state == 'wander' and now > stateUntil then
                         state = 'returning'
                         wanderPoint = nil
-                        walkTo(ped, post, coords.w)
+                        walkTo(ped, targetPos, targetNode.w)
                     elseif state == 'wander' and wanderPoint and #(GetEntityCoords(ped) - wanderPoint) < 1.0 then
                         startIdle(ped)
                         wanderPoint = nil
-                    elseif state == 'idle' and now > nextIdleChange then
-                        nextIdleChange = now + math.random(Config.WanderIntervalMin, Config.WanderIntervalMax)
-                        if math.random() < Config.WanderChance then
-                            local a = math.random() * 2.0 * math.pi
-                            local r = math.random(100, math.floor(WANDER_RADIUS * 100)) / 100
-                            wanderPoint = vector3(post.x + math.cos(a) * r, post.y + math.sin(a) * r, post.z)
-                            state, stateUntil = 'wander', now + Config.WanderDuration
-                            walkTo(ped, wanderPoint)
-                        else
+                    elseif state == 'idle' then
+                        -- Handle transitions from idle: either wander or move to next path node
+                        if now > stateUntil then
+                            if #path > 1 then
+                                -- Move to next node in path
+                                currentPathIndex = currentPathIndex + 1
+                                if currentPathIndex > #path then currentPathIndex = 1 end
+                                
+                                local nextNode = path[currentPathIndex]
+                                state = 'patrol'
+                                walkTo(ped, vector3(nextNode.x, nextNode.y, nextNode.z), nextNode.w)
+                            elseif now > nextIdleChange then
+                                -- Single point: maybe wander
+                                nextIdleChange = now + math.random(Config.WanderIntervalMin, Config.WanderIntervalMax)
+                                if math.random() < Config.WanderChance then
+                                    local a = math.random() * 2.0 * math.pi
+                                    local r = math.random(100, math.floor(WANDER_RADIUS * 100)) / 100
+                                    wanderPoint = vector3(targetPos.x + math.cos(a) * r, targetPos.y + math.sin(a) * r, targetPos.z)
+                                    state, stateUntil = 'wander', now + Config.WanderDuration
+                                    walkTo(ped, wanderPoint)
+                                else
+                                    startIdle(ped)
+                                end
+                            end
+                        end
+                    elseif state == 'patrol' then
+                        -- Check if we reached the patrol node
+                        if #(currentCoords - targetPos) < 1.0 then
+                            state = 'idle'
+                            stateUntil = now + math.random(Config.PathNodeWaitMin, Config.PathNodeWaitMax)
                             startIdle(ped)
                         end
                     end
@@ -208,10 +226,10 @@ end
 
 CreateThread(function()
     for name, data in pairs(Config.Locations) do
-        -- Create blip if sprite is defined
+        -- Create blip if sprite is defined (using first point in path)
         if data.sprite then
-            -- styleHash 1664425300 is a generic blip style for RedM
-            local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, data.coords.x, data.coords.y, data.coords.z)
+            local firstPoint = data.path[1]
+            local blip = Citizen.InvokeNative(0x554D9D53F696D002, 1664425300, firstPoint.x, firstPoint.y, firstPoint.z)
             SetBlipSprite(blip, data.sprite, true)
             SetBlipScale(blip, 1.0)
             local varString = VarString(10, 'LITERAL_STRING', data.label or name)
