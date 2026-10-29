@@ -24,7 +24,7 @@ Config.Heist = {
     StatueModel = `p_gen_statue02b`, -- Example statue model
     StatueSize = 5, -- Size of the statue prop
     StatueLocations = {
-        vector4(-231.0029, 842.0952, 123.2734, 0),
+        vector4(-248.3603, 780.0131, 118.3014, 0),
         -- Add more statue locations here
     },
     Payout = 200, -- cash paid for each delivered statue
@@ -40,7 +40,7 @@ Config.Heist = {
         animName = 'grip_lt_arm',
     },
     Delivery = {
-        coords = vector4(-245.1085, 846.6229, 123.8764, 116.9145),
+        coords = vector4(-268.7309, 776.7904, 118.9298, 99.2943),
         radius = 4.0,                           -- size of both the map circle and the world cylinder
         color = 'BLIP_MODIFIER_MP_COLOR_32',    -- map circle tint
         marker = { r = 255, g = 200, b = 0, a = 120 }, -- world cylinder colour
@@ -54,13 +54,6 @@ Config.Heist = {
         label = 'Find the Statue'
     }
 }
-
-
-
-
-
-payout = 200
-
 
 
 
