@@ -6,4 +6,5 @@ rdr3_warning 'I acknowledge that this is a prerelease build of RedM, and I am aw
 author '_forza'
 description 'Art Robbery for VORP'
 
+shared_script 'config.lua'
 client_script 'client.lua'

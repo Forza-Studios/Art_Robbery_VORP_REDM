@@ -1,5 +1,5 @@
-local PED_MODEL = `cs_valprostitute_02`
-local PED_COORDS = vector4(-238.9870, 770.3414, 117.0950, 108.0667)
+local PED_MODEL = Config.PedModel
+local PED_COORDS = Config.PedCoords
 local POST = vector3(PED_COORDS.x, PED_COORDS.y, PED_COORDS.z)
 
 local NOTICE_DISTANCE = 10.0
