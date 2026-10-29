@@ -41,3 +41,29 @@ end)
 AddEventHandler('playerDropped', function()
     lastPayout[source] = nil
 end)
+
+-- Admin preview commands: toggle a map/world view of every statue or delivery location.
+local function isAdmin(src)
+    if src == 0 or IsPlayerAceAllowed(src, 'command') then return true end
+    local user = VORPcore.getUser and VORPcore.getUser(src)
+    local character = user and user.getUsedCharacter
+    if not character then return false end
+    for _, group in ipairs(Config.AdminGroups) do
+        if character.group == group then return true end
+    end
+    return false
+end
+
+local function registerPreviewCommand(name, kind)
+    RegisterCommand(name, function(src)
+        if src == 0 then return end
+        if not isAdmin(src) then
+            TriggerClientEvent('vorp:TipRight', src, 'You do not have permission to use this command.', 4000)
+            return
+        end
+        TriggerClientEvent('coi_art_rob:client:togglePreview', src, kind)
+    end, false)
+end
+
+registerPreviewCommand('statue', 'statue')
+registerPreviewCommand('statuedeli', 'delivery')

@@ -80,6 +80,9 @@ Config.PropsLocationOnHands = {
     },
 }
 
+-- Who may use /statue and /statuedeli: VORP character groups (or anyone with the `command` ace permission).
+Config.AdminGroups = { 'admin' }
+
 Config.EndPrompt = {
     label = 'End Art Heist',
     control = 0xC7B5340A, -- INPUT_FRONTEND_ACCEPT

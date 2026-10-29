@@ -662,3 +662,73 @@ AddEventHandler('onResourceStop', function(resourceName)
         PromptDelete(heistPrompt)
     end
 end)
+
+-- Admin preview (/statue, /statuedeli): show every statue or delivery location on the map and in the world.
+local preview = {
+    statue = { on = false, blips = {} },
+    delivery = { on = false, blips = {} },
+}
+
+local function clearPreview(kind)
+    for i, blip in pairs(preview[kind].blips) do
+        RemoveBlip(blip)
+        preview[kind].blips[i] = nil
+    end
+end
+
+local function showPreview(kind)
+    local blipCfg = Config.Heist.Blip
+    if kind == 'statue' then
+        for i, coords in ipairs(Config.Heist.StatueLocations) do
+            local blip = addAreaBlip(coords, blipCfg.radius, blipCfg.color, blipCfg.label)
+            if blip then preview.statue.blips[i] = blip end
+        end
+    else
+        for i, d in ipairs(Config.GetDeliveryPoints()) do
+            local blip = addAreaBlip(d.coords, d.blipRadius or d.radius, d.color, d.label)
+            if blip then preview.delivery.blips[i] = blip end
+        end
+    end
+end
+
+RegisterNetEvent('coi_art_rob:client:togglePreview', function(kind)
+    local state = preview[kind]
+    if not state then return end
+    state.on = not state.on
+    clearPreview(kind)
+    if state.on then showPreview(kind) end
+    TriggerEvent('vorp:TipRight', ('%s locations %s'):format(kind == 'statue' and 'Statue' or 'Delivery', state.on and 'shown' or 'hidden'), 3000)
+end)
+
+local function drawCylinder(coords, radius, r, g, b, a)
+    Citizen.InvokeNative(0x2A32FAA57B937173, 0x94FDAE17, coords.x, coords.y, coords.z - 1.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        radius * 2.0, radius * 2.0, 3.0, r, g, b, a,
+        false, false, 2, false, nil, nil, false)
+end
+
+CreateThread(function()
+    while true do
+        local wait = 500
+        if preview.statue.on or preview.delivery.on then
+            wait = 0
+            if preview.statue.on then
+                for _, coords in ipairs(Config.Heist.StatueLocations) do
+                    drawCylinder(coords, Config.Heist.PickupDistance, 60, 200, 90, 120)
+                end
+            end
+            if preview.delivery.on then
+                for _, d in ipairs(Config.GetDeliveryPoints()) do
+                    drawCylinder(d.coords, d.radius, d.marker.r, d.marker.g, d.marker.b, d.marker.a)
+                end
+            end
+        end
+        Wait(wait)
+    end
+end)
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if GetCurrentResourceName() ~= resourceName then return end
+    clearPreview('statue')
+    clearPreview('delivery')
+end)
